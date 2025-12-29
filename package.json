@@ -1,0 +1,26 @@
+{
+  "name": "livechat",
+  "version": "1.0.0",
+  "description": "Modern real-time chat application with WebSocket support",
+  "main": "index.html",
+  "scripts": {
+    "start": "npx serve .",
+    "dev": "npx serve . -p 8000"
+  },
+  "keywords": [
+    "chat",
+    "websocket",
+    "real-time",
+    "jwt",
+    "messaging"
+  ],
+  "author": "Venu & Mathu",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/venu21-dev/lb3-livechat-projektarbeit.git"
+  },
+  "engines": {
+    "node": ">=14.0.0"
+  }
+}
