@@ -118,10 +118,96 @@
     </div>
 
     <!-- Chat Page (placeholder) -->
-    <div class="chat-page hidden" id="chat-page">
-        <p>Chat wird hier geladen...</p>
-    </div>
+<!-- Chat Page -->
+<div class="chat-page hidden" id="chat-page">
+    <!-- Sidebar -->
+    <aside class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+            <div class="current-user">
+                <div class="user-avatar">
+                    <span id="current-user-initial">U</span>
+                </div>
+                <div class="user-info">
+                    <div class="user-name" id="current-user-name">Username</div>
+                    <div class="user-email" id="current-user-email">user@email.com</div>
+                </div>
+            </div>
+            <div class="sidebar-actions">
+                <button id="settings-btn" class="icon-btn" title="Einstellungen">
+                    ⚙️
+                </button>
+                <button id="logout-btn" class="icon-btn" title="Abmelden">
+                    🚪
+                </button>
+            </div>
+        </div>
+
+        <div class="users-section">
+            <div class="section-header">
+                <h2 class="section-title">Kontakte</h2>
+                <span class="user-count" id="user-count">0</span>
+            </div>
+            <div class="user-list" id="user-list">
+                <!-- Users will be loaded here -->
+            </div>
+        </div>
+    </aside>
+
+    <!-- Main Chat Area -->
+    <main class="chat-main">
+        <!-- Chat Header -->
+        <header class="chat-header hidden" id="chat-header">
+            <button class="mobile-menu-btn" id="mobile-menu-btn">
+                ☰
+            </button>
+            <div class="chat-recipient">
+                <div class="user-avatar">
+                    <span id="recipient-initial">U</span>
+                </div>
+                <div class="recipient-info">
+                    <div class="recipient-name" id="recipient-name">Username</div>
+                    <div class="recipient-status" id="recipient-status">
+                        <span class="status-dot"></span>
+                        <span class="status-text">Online</span>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- No Chat Selected -->
+        <div class="no-chat-selected" id="no-chat-selected">
+            <div class="empty-state">
+                <h2>Willkommen bei LiveChat!</h2>
+                <p>Wähle einen Kontakt aus der Liste, um zu chatten</p>
+            </div>
+        </div>
+
+        <!-- Messages Container -->
+        <div class="messages-container hidden" id="messages-container">
+            <div class="messages-list" id="messages-list">
+                <!-- Messages will be loaded here -->
+            </div>
+        </div>
+
+        <!-- Message Input -->
+        <div class="message-input-container hidden" id="message-input-container">
+            <form class="message-form" id="message-form">
+                <input
+                    type="text"
+                    class="message-input"
+                    id="message-input"
+                    placeholder="Nachricht schreiben..."
+                    autocomplete="off"
+                    required
+                >
+                <button type="submit" class="send-btn">
+                    📤
+                </button>
+            </form>
+        </div>
+    </main>
 </div>
+
 
     <!-- JavaScript Module -->
     <script type="module" src="js/main.js"></script>
