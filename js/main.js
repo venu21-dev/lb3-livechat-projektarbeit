@@ -4,11 +4,40 @@
  * Authors: Venu & Mathu
  */
 
+import * as API from './api.js';
+import * as Auth from './auth.js';
+
 // Application state
 const app = {
     initialized: false,
-    currentPage: 'loading'
+    currentPage: null,
+    currentUser: null
 };
+
+/**
+ * Show specific page
+ */
+function showPage(pageName) {
+    // Hide all pages
+    const pages = ['auth-page', 'chat-page'];
+    pages.forEach(page => {
+        const element = document.getElementById(page);
+        if (element) element.classList.add('hidden');
+    });
+
+    // Show requested page
+    const pageElement = document.getElementById(`${pageName}-page`);
+    if (pageElement) {
+        pageElement.classList.remove('hidden');
+        app.currentPage = pageName;
+    }
+
+    // Hide loading screen
+    const loadingScreen = document.getElementById('loading-screen');
+    if (loadingScreen) {
+        loadingScreen.classList.add('hidden');
+    }
+}
 
 /**
  * Initialize application
@@ -16,9 +45,31 @@ const app = {
 async function init() {
     console.log('🚀 LiveChat starting...');
 
-    // TODO: Add initialization logic
+    try {
+        // Check if user is authenticated
+        if (API.isAuthenticated()) {
+            // User is logged in
+            app.currentUser = API.getStoredUser();
+            console.log('✅ User authenticated:', app.currentUser.username);
 
-    console.log('✅ LiveChat initialized');
+            // TODO: Show chat page (later)
+            showPage('auth'); // For now, still show auth
+
+        } else {
+            // User not logged in, show auth page
+            console.log('ℹ️ User not authenticated, showing login');
+            showPage('auth');
+        }
+
+        // Initialize authentication
+        Auth.initAuth();
+
+        app.initialized = true;
+        console.log('✅ LiveChat initialized');
+
+    } catch (error) {
+        console.error('❌ Error initializing app:', error);
+    }
 }
 
 // Start app when DOM is ready
@@ -27,3 +78,5 @@ if (document.readyState === 'loading') {
 } else {
     init();
 }
+
+export default app;
