@@ -4,7 +4,7 @@ Modern real-time chat application built with vanilla JavaScript, HTML, and CSS.
 
 ## 📋 Description
 
-LiveChat is a real-time messaging application developed as part of the M294 LB3 project at GIBB Bern. The application features JWT authentication, WebSocket real-time communication, and a modern dark-themed user interface.
+LiveChat is a real-time messaging application developed as part of the LB3 project at GIBB Bern. The application features JWT authentication, WebSocket real-time communication, and a modern dark-themed user interface.
 
 ## 👥 Team
 
@@ -41,20 +41,6 @@ LiveChat is a real-time messaging application developed as part of the M294 LB3 
 git clone https://github.com/venu21-dev/lb3-livechat-projektarbeit.git
 cd livechat-projektarbeit
 ```
-
-2. Open `index.html` in your browser or use a local server:
-```bash
-# Using npx (recommended)
-npx serve .
-
-# Or using Python
-python -m http.server 8000
-
-# Or using PHP
-php -S localhost:8000
-```
-
-3. Navigate to `http://localhost:8000` in your browser
 
 ## 📁 Project Structure
 
@@ -131,11 +117,6 @@ export const API_CONFIG = {
 ## 📝 Development
 
 ### Running Locally
-
-```bash
-npx serve .
-```
-
 Access at: `http://localhost:3000`
 
 ### Code Style
@@ -173,7 +154,7 @@ MIT License - See LICENSE file for details
 
 ## 🎓 Academic Information
 
-**Course:** M294 - Frontend Web Development  
+**Course:**  Web Development  
 **Institution:** GIBB Berufsfachschule Bern  
 **Instructor:** Nicolas Dumermuth  
 **Project Type:** LB3 - Practical Assessment  
