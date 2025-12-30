@@ -52,8 +52,14 @@ async function init() {
             app.currentUser = API.getStoredUser();
             console.log('✅ User authenticated:', app.currentUser.username);
 
-            // TODO: Show chat page (later)
-            showPage('auth'); // For now, still show auth
+            // Show chat page
+            showPage('chat');
+
+            // Initialize chat
+            const { default: chatManager } = await import('./chat.js');
+            await chatManager.init();
+
+            
 
         } else {
             // User not logged in, show auth page

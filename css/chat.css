@@ -333,3 +333,73 @@
         width: 100%;
     }
 }
+
+
+/* ============================================ */
+/* USER ITEM */
+/* ============================================ */
+
+.user-item {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-md);
+    padding: var(--spacing-md);
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+    position: relative;
+}
+
+.user-item:hover {
+    background-color: var(--color-bg-tertiary);
+}
+
+.user-item.active {
+    background-color: var(--color-accent);
+}
+
+.user-item.active .user-name,
+.user-item.active .user-status {
+    color: white;
+}
+
+.user-item .user-avatar {
+    width: 48px;
+    height: 48px;
+    position: relative;
+}
+
+.user-item .user-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.status-indicator {
+    position: absolute;
+    bottom: 2px;
+    right: 2px;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background-color: var(--color-success);
+    border: 2px solid var(--color-bg-secondary);
+}
+
+.status-indicator.offline {
+    background-color: var(--color-text-muted);
+}
+
+.arrow-icon {
+    flex-shrink: 0;
+    opacity: 0.5;
+    transition: all var(--transition-fast);
+}
+
+.user-item:hover .arrow-icon {
+    opacity: 1;
+    transform: translateX(4px);
+}
+
+.user-item.active .arrow-icon {
+    opacity: 1;
+}
