@@ -96,6 +96,134 @@ class ChatManager {
         this.setupWebSocket();
     }
 
+
+    /**
+     * Open profile modal
+     */
+    openProfileModal() {
+        const modal = document.getElementById('profile-modal');
+        const usernameInput = document.getElementById('profile-username');
+        const emailInput = document.getElementById('profile-email');
+
+        if (modal && usernameInput && emailInput) {
+            // Fill current values
+            usernameInput.value = this.currentUser.username;
+            emailInput.value = this.currentUser.email || '';
+
+            // Show modal
+            modal.classList.remove('hidden');
+
+            // Setup modal events
+            this.setupProfileModal();
+        }
+    }
+
+    /**
+     * Close profile modal
+     */
+    closeProfileModal() {
+        const modal = document.getElementById('profile-modal');
+        const passwordInput = document.getElementById('profile-password');
+        const passwordConfirm = document.getElementById('profile-password-confirm');
+
+        if (modal) {
+            modal.classList.add('hidden');
+
+            // Clear password fields
+            if (passwordInput) passwordInput.value = '';
+            if (passwordConfirm) passwordConfirm.value = '';
+        }
+    }
+
+    /**
+     * Setup profile modal events
+     */
+    setupProfileModal() {
+        // Close buttons
+        const closeBtn = document.getElementById('profile-modal-close');
+        const cancelBtn = document.getElementById('profile-cancel');
+        const overlay = document.getElementById('profile-modal-overlay');
+
+        const closeHandler = () => this.closeProfileModal();
+
+        if (closeBtn) {
+            closeBtn.removeEventListener('click', closeHandler);
+            closeBtn.addEventListener('click', closeHandler);
+        }
+        if (cancelBtn) {
+            cancelBtn.removeEventListener('click', closeHandler);
+            cancelBtn.addEventListener('click', closeHandler);
+        }
+        if (overlay) {
+            overlay.removeEventListener('click', closeHandler);
+            overlay.addEventListener('click', closeHandler);
+        }
+
+        // Form submit
+        const form = document.getElementById('profile-form');
+        if (form) {
+            form.removeEventListener('submit', this.handleProfileSubmit.bind(this));
+            form.addEventListener('submit', this.handleProfileSubmit.bind(this));
+        }
+    }
+
+    /**
+     * Handle profile form submit
+     */
+    async handleProfileSubmit(event) {
+        event.preventDefault();
+
+        const usernameInput = document.getElementById('profile-username');
+        const emailInput = document.getElementById('profile-email');
+        const passwordInput = document.getElementById('profile-password');
+        const passwordConfirm = document.getElementById('profile-password-confirm');
+
+        const username = usernameInput.value.trim();
+        const email = emailInput.value.trim();
+        const password = passwordInput.value;
+        const passwordConfirmValue = passwordConfirm.value;
+
+        // Validation
+        if (password && password !== passwordConfirmValue) {
+            showError('profile-error', 'Passwörter stimmen nicht überein');
+            return;
+        }
+
+        if (password && password.length < 6) {
+            showError('profile-error', 'Passwort muss mindestens 6 Zeichen lang sein');
+            return;
+        }
+
+        try {
+            hideError('profile-error');
+
+            // Prepare update data
+            const updateData = { username, email };
+            if (password) {
+                updateData.password = password;
+            }
+
+            // Update user
+            const userId = this.currentUser.id || this.currentUser._id;
+            const updated = await API.updateUser(userId, updateData);
+
+            // Update local user data
+            this.currentUser = { ...this.currentUser, ...updated };
+            API.saveAuthData(API.getToken(), this.currentUser);
+
+            // Update UI
+            this.setupUI();
+
+            // Close modal
+            this.closeProfileModal();
+
+            console.log('✅ Profile updated');
+
+        } catch (error) {
+            console.error('Error updating profile:', error);
+            showError('profile-error', error.message || 'Fehler beim Speichern');
+        }
+    }
     /**
      * Setup WebSocket connection
      */
@@ -230,12 +358,13 @@ class ChatManager {
         this.setupMessageForm();
         
         // Settings button
+
         const settingsBtn = document.getElementById('settings-btn');
         if (settingsBtn) {
-            settingsBtn.addEventListener('click', () => {
-                console.log('Settings clicked (TODO)');
-            });
-        }
+        settingsBtn.addEventListener('click', () => {
+        this.openProfileModal();
+    });
+}
 
         // Mobile menu button
         const mobileMenuBtn = document.getElementById('mobile-menu-btn');
