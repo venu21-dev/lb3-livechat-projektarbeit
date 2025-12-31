@@ -12,6 +12,60 @@ import {
     hideError
 } from './utils.js';
 
+// Cache key for sent messages
+const SENT_MESSAGES_CACHE_KEY = 'livechat_sent_messages_';
+
+/**
+ * Get cache key for current user
+ */
+function getCacheKey(userId) {
+    return SENT_MESSAGES_CACHE_KEY + userId;
+}
+
+/**
+ * Get sent messages from cache
+ */
+function getSentMessagesCache(userId) {
+    try {
+        const cached = localStorage.getItem(getCacheKey(userId));
+        return cached ? JSON.parse(cached) : [];
+    } catch (error) {
+        console.error('Error reading cache:', error);
+        return [];
+    }
+}
+
+/**
+ * Save sent messages to cache
+ */
+function saveSentMessagesCache(userId, messages) {
+    try {
+        localStorage.setItem(getCacheKey(userId), JSON.stringify(messages));
+    } catch (error) {
+        console.error('Error saving cache:', error);
+    }
+}
+
+/**
+ * Add message to cache
+ */
+function addToCache(userId, message) {
+    const cached = getSentMessagesCache(userId);
+    cached.push({
+        id: message.id || message._id,
+        timestamp: message.created_at || message.timestamp || new Date().toISOString()
+    });
+    saveSentMessagesCache(userId, cached);
+}
+
+/**
+ * Check if message is in cache
+ */
+function isInCache(userId, messageId) {
+    const cached = getSentMessagesCache(userId);
+    return cached.some(m => m.id === messageId);
+}
+
 class ChatManager {
     constructor() {
         this.currentUser = null;
@@ -95,15 +149,39 @@ class ChatManager {
     /**
      * Load all users
      */
-    async loadUsers() {
-        try {
-            this.users = await API.getUsers();
-            this.renderUserList();
-        } catch (error) {
-            console.error('Error loading users:', error);
-            showError('chat-error', 'Fehler beim Laden der Benutzerliste');
-        }
+    async loadMessages() {
+    try {
+        const allMessages = await API.getMessages();
+
+        // Filter messages using cache
+        const currentUserId = this.currentUser.id || this.currentUser._id;
+        const sentCache = getSentMessagesCache(currentUserId);
+
+        // Only show:
+        // 1. Messages sent by current user (in cache)
+        // 2. Messages sent TO current user (received)
+        this.messages = allMessages.filter(message => {
+            const messageId = message.id || message._id;
+            const senderId = message.user?.id || message.user?._id || message.sender_id;
+
+            // Keep if sent by current user (check cache)
+            if (senderId === currentUserId && isInCache(currentUserId, messageId)) {
+                return true;
+            }
+
+            // Keep if sent TO current user
+            if (message.receiver_id === currentUserId) {
+                return true;
+            }
+
+            return false;
+        });
+
+        this.renderMessages();
+    } catch (error) {
+        console.error('Error loading messages:', error);
     }
+}
 
     /**
      * Render user list in sidebar
@@ -343,7 +421,11 @@ class ChatManager {
         if (!text || !text.trim()) return;
 
         try {
+            const currentUserId = this.currentUser.id || this.currentUser._id;
             const message = await API.sendMessage(null, text.trim());
+
+            // Add to cache
+            addToCache(currentUserId, message);
 
             // Add to messages array
             this.messages.push(message);
@@ -357,6 +439,7 @@ class ChatManager {
             throw error;
         }
     }
+
 
     /**
      * Setup message form
@@ -391,6 +474,16 @@ class ChatManager {
                 }
             });
         }
+    }
+
+    
+    /**
+     * Clear cache (for testing)
+     */
+    clearCache() {
+        const currentUserId = this.currentUser.id || this.currentUser._id;
+        localStorage.removeItem(getCacheKey(currentUserId));
+        console.log('Cache cleared');
     }
 }
 
