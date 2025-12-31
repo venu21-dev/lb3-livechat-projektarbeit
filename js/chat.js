@@ -2,7 +2,7 @@
  * Chat Module
  * Handles chat UI and user list
  */
-
+import wsService from './websocket.js';
 import * as API from './api.js';
 import { logout } from './auth.js';
 import {
@@ -92,6 +92,107 @@ class ChatManager {
 
         // Load initial data
         await this.loadUsers();
+        // Setup WebSocket
+        this.setupWebSocket();
+    }
+
+    /**
+     * Setup WebSocket connection
+     */
+    setupWebSocket() {
+        const token = API.getToken();
+        if (!token) {
+            console.error('No token found for WebSocket');
+            return;
+        }
+
+        // Connect to WebSocket
+        wsService.connect(token);
+
+        // Handle incoming messages
+        wsService.onMessage((data) => {
+            console.log('WebSocket message received:', data);
+
+            // Handle new message
+            if (data.type === 'new_message' || data.message) {
+                this.handleNewMessage(data);
+            }
+
+            // Handle user joined
+            if (data.type === 'new_login' || data.user) {
+                this.handleUserJoined(data);
+            }
+
+            // Handle user left
+            if (data.type === 'deleted_user') {
+                this.handleUserLeft(data);
+            }
+        });
+
+        // Handle connection status
+        wsService.onConnection((connected) => {
+            console.log('WebSocket connection status:', connected);
+            // TODO: Show connection status in UI
+        });
+    }
+
+    /**
+     * Handle new message from WebSocket
+     */
+    handleNewMessage(data) {
+        const message = data.message || data;
+
+        // Check if message already exists
+        const messageId = message.id || message._id;
+        const exists = this.messages.some(m =>
+            (m.id || m._id) === messageId
+        );
+
+        if (!exists) {
+            // Add message to array
+            this.messages.push(message);
+
+            // Re-render if chat is active
+            if (this.currentRecipient) {
+                this.renderMessages();
+            }
+
+            console.log('✅ New message added via WebSocket');
+        }
+    }
+
+    /**
+     * Handle user joined from WebSocket
+     */
+    handleUserJoined(data) {
+        const user = data.user || data;
+
+        // Check if user already exists
+        const userId = user.id || user._id;
+        const exists = this.users.some(u =>
+            (u.id || u._id) === userId
+        );
+
+        if (!exists) {
+            this.users.push(user);
+            this.renderUserList();
+            console.log('✅ User joined:', user.username);
+        }
+    }
+
+    /**
+     * Handle user left from WebSocket
+     */
+    handleUserLeft(data) {
+        const userId = data.user_id || data.id;
+
+        // Remove user from list
+        this.users = this.users.filter(u =>
+            (u.id || u._id) !== userId
+        );
+
+        this.renderUserList();
+        console.log('👋 User left');
     }
 
     /**
