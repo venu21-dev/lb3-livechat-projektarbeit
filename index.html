@@ -207,6 +207,79 @@
             </form>
         </div>
     </main>
+
+    <!-- Profile Modal -->
+    <div class="modal hidden" id="profile-modal">
+        <div class="modal-overlay" id="profile-modal-overlay"></div>
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title">Profil bearbeiten</h2>
+                <button class="modal-close" id="profile-modal-close">×</button>
+            </div>
+
+            <div class="modal-body">
+                <div id="profile-error" class="error-message"></div>
+
+                <form id="profile-form" class="profile-form">
+                    <div class="form-group">
+                        <label for="profile-username" class="form-label">Benutzername</label>
+                        <input
+                            type="text"
+                            id="profile-username"
+                            class="form-input"
+                            required
+                            minlength="3"
+                        >
+                    </div>
+
+                    <div class="form-group">
+                        <label for="profile-email" class="form-label">E-Mail</label>
+                        <input
+                            type="email"
+                            id="profile-email"
+                            class="form-input"
+                            required
+                        >
+                    </div>
+
+                    <div class="form-divider"></div>
+
+                    <h3 class="form-section-title">Passwort ändern (optional)</h3>
+
+                    <div class="form-group">
+                        <label for="profile-password" class="form-label">Neues Passwort</label>
+                        <input
+                            type="password"
+                            id="profile-password"
+                            class="form-input"
+                            placeholder="Leer lassen um nicht zu ändern"
+                            minlength="6"
+                        >
+                    </div>
+
+                    <div class="form-group">
+                        <label for="profile-password-confirm" class="form-label">Passwort bestätigen</label>
+                        <input
+                            type="password"
+                            id="profile-password-confirm"
+                            class="form-input"
+                            placeholder="Wiederhole neues Passwort"
+                        >
+                    </div>
+
+                    <div class="modal-actions">
+                        <button type="button" class="btn-secondary" id="profile-cancel">
+                            Abbrechen
+                        </button>
+                        <button type="submit" class="btn-primary">
+                            Speichern
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
 </div>
 
 
