@@ -72,6 +72,8 @@ class ChatManager {
             });
         }
 
+        this.setupMessageForm();
+        
         // Settings button
         const settingsBtn = document.getElementById('settings-btn');
         if (settingsBtn) {
@@ -202,7 +204,9 @@ class ChatManager {
         }
 
         console.log('Selected user:', user.username);
-        // TODO: Load messages
+        // Load messages
+        await this.loadMessages();
+
     }
 
     /**
@@ -242,6 +246,151 @@ class ChatManager {
         if (chatHeader) chatHeader.style.display = 'flex';
         if (messagesContainer) messagesContainer.style.display = 'block';
         if (messageInputContainer) messageInputContainer.style.display = 'block';
+    }
+
+
+    /**
+     * Load messages
+     */
+    async loadMessages() {
+        try {
+            this.messages = await API.getMessages();
+            this.renderMessages();
+        } catch (error) {
+            console.error('Error loading messages:', error);
+        }
+    }
+
+    /**
+     * Render messages in chat
+     */
+    renderMessages() {
+        const messagesList = document.getElementById('messages-list');
+        if (!messagesList) return;
+
+        messagesList.innerHTML = '';
+
+        if (this.messages.length === 0) {
+            messagesList.innerHTML = `
+                <div class="no-messages">
+                    <p>Noch keine Nachrichten. Schreibe die erste!</p>
+                </div>
+            `;
+            return;
+        }
+
+        this.messages.forEach((message, index) => {
+            const messageEl = this.createMessageElement(message);
+            messagesList.appendChild(messageEl);
+        });
+
+        // Scroll to bottom
+        messagesList.scrollTop = messagesList.scrollHeight;
+    }
+
+    /**
+     * Create message element
+     */
+    createMessageElement(message) {
+        const div = document.createElement('div');
+
+        const currentUserId = this.currentUser.id || this.currentUser._id;
+        const senderId = message.user?.id || message.user?._id || message.sender_id;
+        const isOwn = senderId === currentUserId;
+
+        div.className = `message ${isOwn ? 'own' : 'other'}`;
+
+        const senderName = message.user?.username || 'Unknown';
+        const initial = senderName.charAt(0).toUpperCase();
+        const gradient = getAvatarGradient(senderName);
+
+        const time = new Date(message.created_at || message.timestamp).toLocaleTimeString('de-DE', {
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+
+        div.innerHTML = `
+            ${!isOwn ? `
+                <div class="message-avatar" style="background: ${gradient};">
+                    <span>${initial}</span>
+                </div>
+            ` : ''}
+            <div class="message-content">
+                ${!isOwn ? `<div class="message-sender">${senderName}</div>` : ''}
+                <div class="message-bubble">
+                    <div class="message-text">${this.escapeHtml(message.message || message.text)}</div>
+                    <div class="message-time">${time}</div>
+                </div>
+            </div>
+        `;
+
+        return div;
+    }
+
+    /**
+     * Escape HTML to prevent XSS
+     */
+    escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    /**
+     * Send message
+     */
+    async sendMessage(text) {
+        if (!text || !text.trim()) return;
+
+        try {
+            const message = await API.sendMessage(null, text.trim());
+
+            // Add to messages array
+            this.messages.push(message);
+
+            // Re-render messages
+            this.renderMessages();
+
+            return message;
+        } catch (error) {
+            console.error('Error sending message:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Setup message form
+     */
+    setupMessageForm() {
+        const messageForm = document.getElementById('message-form');
+        const messageInput = document.getElementById('message-input');
+
+        if (messageForm && messageInput) {
+            messageForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+
+                const text = messageInput.value.trim();
+                if (!text) return;
+
+                try {
+                    // Disable input
+                    messageInput.disabled = true;
+
+                    // Send message
+                    await this.sendMessage(text);
+
+                    // Clear input
+                    messageInput.value = '';
+
+                } catch (error) {
+                    console.error('Error sending message:', error);
+                    alert('Fehler beim Senden der Nachricht');
+                } finally {
+                    messageInput.disabled = false;
+                    messageInput.focus();
+                }
+            });
+        }
     }
 }
 
