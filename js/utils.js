@@ -202,3 +202,41 @@ export default {
     playNotificationSound,
     showNotification,
 };
+
+/**
+ * Show toast notification
+ */
+export function showToast(message, type = 'info') {
+    const toast = document.createElement('div');
+    toast.className = `toast toast-${type}`;
+    toast.textContent = message;
+
+    document.body.appendChild(toast);
+
+    // Animate in
+    setTimeout(() => toast.classList.add('show'), 10);
+
+    // Remove after 3 seconds
+    setTimeout(() => {
+        toast.classList.remove('show');
+        setTimeout(() => toast.remove(), 300);
+    }, 3000);
+}
+
+/**
+ * Handle API errors
+ */
+export function handleError(error, context = '') {
+    console.error(`Error in ${context}:`, error);
+
+    let message = 'Ein Fehler ist aufgetreten';
+
+    if (error.message) {
+        message = error.message;
+    } else if (typeof error === 'string') {
+        message = error;
+    }
+
+    showToast(message, 'error');
+    return message;
+}

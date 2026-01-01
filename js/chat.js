@@ -12,7 +12,9 @@ import {
     hideError,
     parseMarkdown, 
     playNotificationSound, 
-    showNotification
+    showNotification,
+    handleError,
+    showToast
 } from './utils.js';
 
 // Cache key for sent messages
@@ -475,6 +477,8 @@ class ChatManager {
      * Load all users
      */
     async loadMessages() {
+    this.showLoading(true);
+
     try {
         const allMessages = await API.getMessages();
 
@@ -503,9 +507,10 @@ class ChatManager {
         });
 
         this.renderMessages();
-    } catch (error) {
-        console.error('Error loading messages:', error);
-    }
+} catch (error) {
+    handleError(error, 'loadMessages');
+    showToast('Fehler beim Laden der Nachrichten', 'error');
+}
 }
 
     /**
@@ -760,8 +765,21 @@ class ChatManager {
 
             return message;
         } catch (error) {
-            console.error('Error sending message:', error);
-            throw error;
+        handleError(error, 'sendMessage');
+        showToast('Nachricht konnte nicht gesendet werden', 'error');
+        throw error;
+}
+    }
+
+    /**
+     * Show loading state
+     */
+    showLoading(show = true) {
+        const messagesList = document.getElementById('messages-list');
+        if (!messagesList) return;
+
+        if (show) {
+            messagesList.innerHTML = '<div class="loading-messages"></div>';
         }
     }
 
