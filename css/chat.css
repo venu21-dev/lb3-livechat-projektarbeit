@@ -1019,3 +1019,58 @@
         border-radius: var(--radius-md);
     }
 }
+
+
+/* ============================================ */
+/* TOAST NOTIFICATIONS */
+/* ============================================ */
+
+.toast {
+    position: fixed;
+    bottom: var(--spacing-xl);
+    right: var(--spacing-xl);
+    padding: 16px 24px;
+    background: var(--color-bg-secondary);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-lg);
+    color: var(--color-text-primary);
+    font-size: 0.95rem;
+    opacity: 0;
+    transform: translateY(20px);
+    transition: all 0.3s ease;
+    z-index: 10000;
+    max-width: 400px;
+}
+
+.toast.show {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.toast-error {
+    background: rgba(244, 67, 54, 0.9);
+    border-color: var(--color-error);
+    color: white;
+}
+
+.toast-success {
+    background: rgba(76, 175, 80, 0.9);
+    border-color: var(--color-success);
+    color: white;
+}
+
+.toast-info {
+    background: rgba(106, 159, 181, 0.9);
+    border-color: var(--color-accent);
+    color: white;
+}
+
+@media (max-width: 768px) {
+    .toast {
+        left: var(--spacing-md);
+        right: var(--spacing-md);
+        bottom: var(--spacing-lg);
+        max-width: none;
+    }
+}
