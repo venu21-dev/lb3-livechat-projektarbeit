@@ -10,7 +10,9 @@ import {
     getAvatarGradient,
     showError,
     hideError,
-    parseMarkdown
+    parseMarkdown, 
+    playNotificationSound, 
+    showNotification
 } from './utils.js';
 
 // Cache key for sent messages
@@ -95,6 +97,24 @@ class ChatManager {
         await this.loadUsers();
         // Setup WebSocket
         this.setupWebSocket();
+        // Request notification permission
+        await this.requestNotificationPermission();
+
+    }
+
+
+    /**
+     * Request notification permission
+     */
+    async requestNotificationPermission() {
+        if ('Notification' in window && Notification.permission === 'default') {
+            try {
+                const permission = await Notification.requestPermission();
+                console.log('Notification permission:', permission);
+            } catch (error) {
+                console.error('Error requesting notification permission:', error);
+            }
+        }
     }
 
 
@@ -305,27 +325,64 @@ class ChatManager {
     /**
      * Handle new message from WebSocket
      */
-    handleNewMessage(data) {
-        const message = data.message || data;
+        handleNewMessage(data) {
+            const message = data.message || data;
 
-        // Check if message already exists
-        const messageId = message.id || message._id;
-        const exists = this.messages.some(m =>
-            (m.id || m._id) === messageId
-        );
+            // Check if message already exists
+            const messageId = message.id || message._id;
+            const exists = this.messages.some(m =>
+                (m.id || m._id) === messageId
+            );
 
-        if (!exists) {
-            // Add message to array
-            this.messages.push(message);
+            if (!exists) {
+                // Add message to array
+                this.messages.push(message);
 
-            // Re-render if chat is active
-            if (this.currentRecipient) {
-                this.renderMessages();
+                // Check if message is from another user
+                const currentUserId = this.currentUser.id || this.currentUser._id;
+                const senderId = message.user?.id || message.user?._id || message.sender_id;
+                const isOwnMessage = senderId === currentUserId;
+
+                // Re-render if chat is active
+                if (this.currentRecipient) {
+                    this.renderMessages();
+                }
+
+                // Show notification if not own message
+                if (!isOwnMessage) {
+                    const senderName = message.user?.username || 'Someone';
+                    const messageText = message.message || message.text || '';
+
+                    // Play sound
+                    playNotificationSound();
+
+                    // Show browser notification
+                    showNotification(
+                        `Neue Nachricht von ${senderName}`,
+                        messageText.substring(0, 50) + (messageText.length > 50 ? '...' : '')
+                    );
+                }
+
+                console.log('✅ New message added via WebSocket');
+            }
+        }
+
+
+            /**
+             * Show unread count badge
+             */
+            updateUnreadCount() {
+                // TODO: Implement unread count in UI
+                // For now, just log
+                const unreadCount = this.messages.filter(m => {
+                    const senderId = m.user?.id || m.user?._id || m.sender_id;
+                    const currentUserId = this.currentUser.id || this.currentUser._id;
+                    return senderId !== currentUserId && !m.read;
+                }).length;
+
+                console.log('Unread messages:', unreadCount);
             }
 
-            console.log('✅ New message added via WebSocket');
-        }
-    }
 
     /**
      * Handle user joined from WebSocket
@@ -742,7 +799,6 @@ class ChatManager {
                 }
             });
         }
-
         this.setupMarkdownButtons();
     }
 
