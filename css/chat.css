@@ -307,6 +307,53 @@
     transform: scale(0.95);
 }
 
+
+.message-input-wrapper {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-xs);
+}
+
+.markdown-toolbar {
+    display: flex;
+    gap: var(--spacing-xs);
+    padding: 0 var(--spacing-xs);
+}
+
+.md-btn {
+    padding: 4px 8px;
+    border: 1px solid var(--color-border);
+    background-color: var(--color-bg-tertiary);
+    color: var(--color-text-primary);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+    font-size: 0.85rem;
+}
+
+.md-btn:hover {
+    background-color: var(--color-accent);
+    border-color: var(--color-accent);
+    color: white;
+}
+
+.message-text code {
+    background-color: rgba(255, 255, 255, 0.1);
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-family: 'Courier New', monospace;
+    font-size: 0.9em;
+}
+
+.message-text strong {
+    font-weight: 700;
+}
+
+.message-text em {
+    font-style: italic;
+}
+
 /* ============================================ */
 /* RESPONSIVE */
 /* ============================================ */
