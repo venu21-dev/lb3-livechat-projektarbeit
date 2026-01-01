@@ -9,7 +9,8 @@ import {
     getInitials,
     getAvatarGradient,
     showError,
-    hideError
+    hideError,
+    parseMarkdown
 } from './utils.js';
 
 // Cache key for sent messages
@@ -96,6 +97,43 @@ class ChatManager {
         this.setupWebSocket();
     }
 
+
+    /**
+     * Setup markdown buttons
+     */
+    setupMarkdownButtons() {
+        const mdButtons = document.querySelectorAll('.md-btn');
+        const messageInput = document.getElementById('message-input');
+
+        if (!messageInput) return;
+
+        mdButtons.forEach(button => {
+            button.addEventListener('click', () => {
+                const md = button.dataset.md;
+                const start = messageInput.selectionStart;
+                const end = messageInput.selectionEnd;
+                const text = messageInput.value;
+                const selectedText = text.substring(start, end);
+
+                let newText;
+                let newCursorPos;
+
+                if (selectedText) {
+                    // Wrap selected text
+                    newText = text.substring(0, start) + md + selectedText + md + text.substring(end);
+                    newCursorPos = end + (md.length * 2);
+                } else {
+                    // Insert markdown syntax
+                    newText = text.substring(0, start) + md + md + text.substring(end);
+                    newCursorPos = start + md.length;
+                }
+
+                messageInput.value = newText;
+                messageInput.focus();
+                messageInput.setSelectionRange(newCursorPos, newCursorPos);
+            });
+        });
+    }
 
     /**
      * Open profile modal
@@ -626,7 +664,7 @@ class ChatManager {
             <div class="message-content">
                 ${!isOwn ? `<div class="message-sender">${senderName}</div>` : ''}
                 <div class="message-bubble">
-                    <div class="message-text">${this.escapeHtml(message.message || message.text)}</div>
+                    <div class="message-text">${parseMarkdown(this.escapeHtml(message.message || message.text))}</div>
                     <div class="message-time">${time}</div>
                 </div>
             </div>
@@ -704,8 +742,13 @@ class ChatManager {
                 }
             });
         }
+
+        this.setupMarkdownButtons();
     }
 
+    
+
+    
     
     /**
      * Clear cache (for testing)
