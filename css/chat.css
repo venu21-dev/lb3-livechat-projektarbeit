@@ -752,3 +752,270 @@
     }
 }
 
+
+/* ============================================ */
+/* VISUAL DESIGN ENHANCEMENTS */
+/* ============================================ */
+
+/* Sidebar Background */
+.sidebar {
+    background-image: url('../assets/images/Background_Menu.png');
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    position: relative;
+}
+
+.sidebar::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(
+        180deg,
+        rgba(26, 26, 26, 0.95) 0%,
+        rgba(26, 26, 26, 0.85) 100%
+    );
+    pointer-events: none;
+}
+
+.sidebar > * {
+    position: relative;
+    z-index: 1;
+}
+
+/* Chat Main Background */
+.chat-main {
+    background-image: url('../assets/images/background_chat.png');
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    background-attachment: fixed;
+}
+
+/* Messages Container Overlay */
+.messages-container {
+    background: linear-gradient(
+        180deg,
+        rgba(26, 26, 26, 0.85) 0%,
+        rgba(26, 26, 26, 0.75) 100%
+    );
+}
+
+/* ============================================ */
+/* PILL-SHAPED HEADER */
+/* ============================================ */
+
+.chat-header {
+    background: linear-gradient(
+        135deg,
+        rgba(45, 45, 45, 0.95) 0%,
+        rgba(58, 58, 58, 0.95) 100%
+    );
+    backdrop-filter: blur(10px);
+    border-radius: var(--radius-pill);
+    margin: var(--spacing-md);
+    height: 70px;
+    border: 1px solid rgba(106, 159, 181, 0.2);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+}
+
+.sidebar-header {
+    background: linear-gradient(
+        135deg,
+        rgba(45, 45, 45, 0.95) 0%,
+        rgba(58, 58, 58, 0.95) 100%
+    );
+    backdrop-filter: blur(10px);
+    border-radius: var(--radius-xl);
+    border: 1px solid rgba(106, 159, 181, 0.2);
+    margin: var(--spacing-md);
+}
+
+/* ============================================ */
+/* GLASSMORPHISM EFFECTS */
+/* ============================================ */
+
+.user-item {
+    background: rgba(45, 45, 45, 0.6);
+    backdrop-filter: blur(8px);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.user-item:hover {
+    background: rgba(58, 58, 58, 0.7);
+    border-color: rgba(106, 159, 181, 0.3);
+}
+
+.user-item.active {
+    background: linear-gradient(
+        135deg,
+        rgba(106, 159, 181, 0.9) 0%,
+        rgba(138, 180, 197, 0.9) 100%
+    );
+    border-color: rgba(106, 159, 181, 0.5);
+    box-shadow: 0 4px 12px rgba(106, 159, 181, 0.3);
+}
+
+.message-bubble {
+    backdrop-filter: blur(8px);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.message.other .message-bubble {
+    background: rgba(58, 58, 58, 0.8);
+}
+
+.message.own .message-bubble {
+    background: linear-gradient(
+        135deg,
+        rgba(106, 159, 181, 0.9) 0%,
+        rgba(138, 180, 197, 0.9) 100%
+    );
+    border-color: rgba(106, 159, 181, 0.3);
+    box-shadow: 0 2px 8px rgba(106, 159, 181, 0.2);
+}
+
+/* ============================================ */
+/* ICON BUTTONS WITH IMAGES */
+/* ============================================ */
+
+#send-btn {
+    background: url('../assets/icons/send_icon.png') center / 24px no-repeat,
+                linear-gradient(135deg, var(--color-accent) 0%, rgba(138, 180, 197, 0.9) 100%);
+}
+
+#settings-btn {
+    background: url('../assets/icons/setting_icon.png') center / 20px no-repeat,
+                rgba(58, 58, 58, 0.8);
+    backdrop-filter: blur(8px);
+}
+
+#settings-btn:hover {
+    background: url('../assets/icons/setting_icon.png') center / 20px no-repeat,
+                var(--color-accent);
+}
+
+/* Alternative: Adjust Icon für andere Buttons */
+.icon-btn.adjust-btn {
+    background: url('../assets/icons/adjust_icon.png') center / 20px no-repeat,
+                rgba(58, 58, 58, 0.8);
+}
+
+/* ============================================ */
+/* MESSAGE INPUT ENHANCEMENT */
+/* ============================================ */
+
+.message-input-container {
+    background: linear-gradient(
+        180deg,
+        rgba(45, 45, 45, 0.95) 0%,
+        rgba(35, 35, 35, 0.95) 100%
+    );
+    backdrop-filter: blur(10px);
+    border-top: 1px solid rgba(106, 159, 181, 0.2);
+}
+
+.message-input {
+    background: rgba(58, 58, 58, 0.6);
+    backdrop-filter: blur(8px);
+    border: 2px solid rgba(106, 159, 181, 0.2);
+}
+
+.message-input:focus {
+    background: rgba(58, 58, 58, 0.8);
+    border-color: var(--color-accent);
+    box-shadow: 0 0 0 4px rgba(106, 159, 181, 0.1);
+}
+
+/* ============================================ */
+/* SCROLLBAR ENHANCEMENT */
+/* ============================================ */
+
+.messages-container::-webkit-scrollbar {
+    width: 10px;
+}
+
+.messages-container::-webkit-scrollbar-track {
+    background: rgba(26, 26, 26, 0.3);
+    border-radius: 5px;
+}
+
+.messages-container::-webkit-scrollbar-thumb {
+    background: linear-gradient(
+        180deg,
+        rgba(106, 159, 181, 0.6) 0%,
+        rgba(138, 180, 197, 0.6) 100%
+    );
+    border-radius: 5px;
+}
+
+.messages-container::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(
+        180deg,
+        rgba(106, 159, 181, 0.8) 0%,
+        rgba(138, 180, 197, 0.8) 100%
+    );
+}
+
+/* ============================================ */
+/* ANIMATIONS */
+/* ============================================ */
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.message {
+    animation: fadeIn 0.3s ease;
+}
+
+.user-item {
+    animation: fadeIn 0.2s ease;
+}
+
+/* ============================================ */
+/* LOADING STATES */
+/* ============================================ */
+
+.loading-messages {
+    display: flex;
+    justify-content: center;
+    padding: var(--spacing-xl);
+}
+
+.loading-messages::after {
+    content: '';
+    width: 40px;
+    height: 40px;
+    border: 4px solid rgba(106, 159, 181, 0.2);
+    border-top-color: var(--color-accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+
+/* ============================================ */
+/* RESPONSIVE ADJUSTMENTS */
+/* ============================================ */
+
+@media (max-width: 768px) {
+    .chat-header {
+        margin: var(--spacing-sm);
+        border-radius: var(--radius-lg);
+        height: 60px;
+    }
+
+    .sidebar-header {
+        margin: var(--spacing-sm);
+        border-radius: var(--radius-md);
+    }
+}
