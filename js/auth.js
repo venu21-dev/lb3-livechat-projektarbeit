@@ -1,115 +1,191 @@
 /**
  * Authentication Module
- * Handles login, registration, and session management
+ * Handles user authentication (login, register, logout)
  */
 
 import * as API from './api.js';
+import { showError, hideError, showSuccess, setButtonLoading, isValidEmail, validatePassword } from './utils.js';
 
 /**
- * Show error message
+ * Initialize authentication event listeners
  */
-function showError(elementId, message) {
-    const errorElement = document.getElementById(elementId);
-    if (errorElement) {
-        errorElement.textContent = message;
-        errorElement.classList.add('show');
+export function initAuth() {
+    // Login form
+    const loginForm = document.getElementById('login-form');
+    if (loginForm) {
+        loginForm.addEventListener('submit', handleLogin);
+    }
+    
+    // Register form
+    const registerForm = document.getElementById('register-form');
+    if (registerForm) {
+        registerForm.addEventListener('submit', handleRegister);
+    }
+    
+    // View switchers
+    const showRegisterBtn = document.getElementById('show-register');
+    const showLoginBtn = document.getElementById('show-login');
+    
+    if (showRegisterBtn) {
+        showRegisterBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            switchView('register');
+        });
+    }
+    
+    if (showLoginBtn) {
+        showLoginBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            switchView('login');
+        });
     }
 }
 
 /**
- * Hide error message
+ * Switch between login and register views
+ * @param {string} view - 'login' or 'register'
  */
-function hideError(elementId) {
-    const errorElement = document.getElementById(elementId);
-    if (errorElement) {
-        errorElement.textContent = '';
-        errorElement.classList.remove('show');
+function switchView(view) {
+    const loginView = document.getElementById('login-view');
+    const registerView = document.getElementById('register-view');
+    
+    if (view === 'register') {
+        loginView.classList.remove('active');
+        registerView.classList.add('active');
+    } else {
+        registerView.classList.remove('active');
+        loginView.classList.add('active');
     }
+    
+    // Clear forms and errors
+    hideError('login-error');
+    hideError('register-error');
 }
 
 /**
  * Handle login form submission
+ * @param {Event} e - Form submit event
  */
-export async function handleLogin(event) {
-    event.preventDefault();
+async function handleLogin(e) {
+    e.preventDefault();
     hideError('login-error');
-
-    const form = event.target;
-    const username = form.querySelector('#login-username').value.trim();
-    const password = form.querySelector('#login-password').value;
-
+    
+    const form = e.target;
+    const submitBtn = form.querySelector('button[type="submit"]');
+    const username = form.username.value.trim();
+    const password = form.password.value;
+    
+    // Validation
     if (!username || !password) {
-        showError('login-error', 'Bitte fülle alle Felder aus');
+        showError('login-error', 'Bitte alle Felder ausfüllen');
         return;
     }
-
+    
+    // Set loading state
+    setButtonLoading(submitBtn, true);
+    
     try {
-        const submitBtn = form.querySelector('button[type="submit"]');
-        submitBtn.disabled = true;
-        submitBtn.textContent = 'Anmeldung läuft...';
-
-        await API.login(username, password);
-
-        // Redirect to chat
-        window.location.href = 'index.html';
-
+        // Call API
+        const response = await API.login({ username, password });
+        
+        // Backend returns { userId, token } not { user, token }
+        // Build user object from response
+        const userData = {
+            id: response.userId,
+            username: username
+        };
+        
+        // Save auth data
+        API.saveAuthData(response.token, userData);
+        
+        // Show success message
+        showSuccess('login-error', '✓ Anmeldung erfolgreich!');
+        
+        // Redirect to chat after short delay
+        setTimeout(() => {
+            window.location.hash = '#chat';
+        }, 1500);
+        
     } catch (error) {
         console.error('Login error:', error);
-        showError('login-error', error.message || 'Fehler bei der Anmeldung');
-
-        const submitBtn = form.querySelector('button[type="submit"]');
-        submitBtn.disabled = false;
-        submitBtn.textContent = 'Anmelden';
+        showError('login-error', error.message || 'Login fehlgeschlagen. Bitte versuche es erneut.');
+        setButtonLoading(submitBtn, false);
     }
 }
 
 /**
- * Handle registration form submission
+ * Handle register form submission
+ * @param {Event} e - Form submit event
  */
-export async function handleRegister(event) {
-    event.preventDefault();
+async function handleRegister(e) {
+    e.preventDefault();
     hideError('register-error');
-
-    const form = event.target;
-    const username = form.querySelector('#register-username').value.trim();
-    const email = form.querySelector('#register-email').value.trim();
-    const password = form.querySelector('#register-password').value;
-
-    if (!username || !email || !password) {
-        showError('register-error', 'Bitte fülle alle Felder aus');
+    
+    const form = e.target;
+    const submitBtn = form.querySelector('button[type="submit"]');
+    const username = form.username.value.trim();
+    const password = form.password.value;
+    const passwordConfirm = form.password_confirm.value;
+    
+    // Validation
+    if (!username || !password || !passwordConfirm) {
+        showError('register-error', 'Bitte alle Felder ausfüllen');
         return;
     }
-
+    
     if (username.length < 3) {
         showError('register-error', 'Benutzername muss mindestens 3 Zeichen lang sein');
         return;
     }
-
-    if (password.length < 6) {
-        showError('register-error', 'Passwort muss mindestens 6 Zeichen lang sein');
+    
+    const passwordValidation = validatePassword(password);
+    if (!passwordValidation.valid) {
+        showError('register-error', passwordValidation.message);
         return;
     }
-
+    
+    if (password !== passwordConfirm) {
+        showError('register-error', 'Passwörter stimmen nicht überein');
+        return;
+    }
+    
+    // Set loading state
+    setButtonLoading(submitBtn, true);
+    
     try {
-        const submitBtn = form.querySelector('button[type="submit"]');
-        submitBtn.disabled = true;
-        submitBtn.textContent = 'Registrierung läuft...';
-
-        await API.register(username, password, email);
-
-        // Auto-login after registration
-        await API.login(username, password);
-
-        // Redirect to chat
-        window.location.href = 'index.html';
-
+        // Call API - Backend expects only username and password
+        const registerResponse = await API.register({ username, password });
+        
+        // Backend only returns {success: true}, no token!
+        // So we need to login immediately after registration
+        if (registerResponse.success) {
+            // Auto-login after successful registration
+            const loginResponse = await API.login({ username, password });
+            
+            // Backend returns { userId, token }
+            const userData = {
+                id: loginResponse.userId,
+                username: username
+            };
+            
+            // Save auth data
+            API.saveAuthData(loginResponse.token, userData);
+            
+            // Show success message
+            showSuccess('register-error', '✓ Konto erfolgreich erstellt!');
+            
+            // Redirect to chat after short delay
+            setTimeout(() => {
+                window.location.hash = '#chat';
+            }, 1500);
+        } else {
+            throw new Error('Registrierung fehlgeschlagen');
+        }
+        
     } catch (error) {
-        console.error('Registration error:', error);
-        showError('register-error', error.message || 'Fehler bei der Registrierung');
-
-        const submitBtn = form.querySelector('button[type="submit"]');
-        submitBtn.disabled = false;
-        submitBtn.textContent = 'Registrieren';
+        console.error('Register error:', error);
+        showError('register-error', error.message || 'Registrierung fehlgeschlagen. Bitte versuche es erneut.');
+        setButtonLoading(submitBtn, false);
     }
 }
 
@@ -117,71 +193,35 @@ export async function handleRegister(event) {
  * Logout user
  */
 export function logout() {
+    // Clear auth data
     API.clearAuthData();
-    window.location.href = 'index.html';
+    
+    // Redirect to login
+    window.location.hash = '#login';
+    
+    // Reload page to reset state
+    window.location.reload();
 }
 
 /**
- * Check authentication and redirect if needed
+ * Check if user is authenticated
+ * @returns {boolean} True if authenticated
  */
-export function requireAuth() {
-    if (!API.isAuthenticated()) {
-        // User not logged in, show auth page
-        return false;
-    }
-    return true;
+export function isAuthenticated() {
+    return API.isAuthenticated();
 }
 
 /**
- * Setup form switching (Login <-> Register)
+ * Get current user data
+ * @returns {object|null} User data
  */
-export function setupFormSwitching() {
-    const showRegisterBtn = document.getElementById('show-register');
-    const showLoginBtn = document.getElementById('show-login');
-    const loginSection = document.getElementById('login-section');
-    const registerSection = document.getElementById('register-section');
-
-    if (showRegisterBtn && showLoginBtn && loginSection && registerSection) {
-        showRegisterBtn.addEventListener('click', (e) => {
-            e.preventDefault();
-            loginSection.classList.add('hidden');
-            registerSection.classList.remove('hidden');
-            hideError('login-error');
-        });
-
-        showLoginBtn.addEventListener('click', (e) => {
-            e.preventDefault();
-            registerSection.classList.add('hidden');
-            loginSection.classList.remove('hidden');
-            hideError('register-error');
-        });
-    }
-}
-
-/**
- * Initialize authentication
- */
-export function initAuth() {
-    // Setup form switching
-    setupFormSwitching();
-
-    // Setup login form
-    const loginForm = document.getElementById('login-form');
-    if (loginForm) {
-        loginForm.addEventListener('submit', handleLogin);
-    }
-
-    // Setup register form
-    const registerForm = document.getElementById('register-form');
-    if (registerForm) {
-        registerForm.addEventListener('submit', handleRegister);
-    }
+export function getCurrentUser() {
+    return API.getStoredUser();
 }
 
 export default {
-    handleLogin,
-    handleRegister,
-    logout,
-    requireAuth,
     initAuth,
+    logout,
+    isAuthenticated,
+    getCurrentUser,
 };

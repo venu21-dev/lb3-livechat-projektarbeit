@@ -1,146 +1,133 @@
 /**
  * Utility Functions
- * Helper functions for UI and data manipulation
+ * Helper functions used throughout the application
  */
 
 /**
- * Get initials from username
+ * Format a date to a readable string
+ * @param {Date|string} date - The date to format
+ * @returns {string} Formatted date string
  */
-export function getInitials(username) {
-    if (!username) return '?';
-
-    const words = username.trim().split(/\s+/);
-    if (words.length === 1) {
-        return words[0].charAt(0).toUpperCase();
+export function formatDate(date) {
+    const d = new Date(date);
+    const now = new Date();
+    const diff = now - d;
+    
+    // Less than 1 minute
+    if (diff < 60000) {
+        return 'Gerade eben';
     }
-    return (words[0].charAt(0) + words[words.length - 1].charAt(0)).toUpperCase();
+    
+    // Less than 1 hour
+    if (diff < 3600000) {
+        const minutes = Math.floor(diff / 60000);
+        return `vor ${minutes} Min.`;
+    }
+    
+    // Less than 24 hours
+    if (diff < 86400000) {
+        const hours = Math.floor(diff / 3600000);
+        return `vor ${hours} Std.`;
+    }
+    
+    // Same year
+    if (d.getFullYear() === now.getFullYear()) {
+        return d.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' });
+    }
+    
+    // Different year
+    return d.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
 }
 
 /**
- * Generate avatar gradient based on username
+ * Format time to HH:MM
+ * @param {Date|string} date - The date to format
+ * @returns {string} Formatted time string
  */
-export function getAvatarGradient(username) {
-    if (!username) {
-        return 'linear-gradient(135deg, #6a9fb5 0%, #8ab4c5 100%)';
-    }
+export function formatTime(date) {
+    const d = new Date(date);
+    return d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+}
 
-    // Generate hash from username
+/**
+ * Get initials from a name
+ * @param {string} name - The name
+ * @returns {string} Initials (max 2 characters)
+ */
+export function getInitials(name) {
+    if (!name) return '?';
+    
+    const parts = name.trim().split(' ');
+    if (parts.length === 1) {
+        return parts[0].substring(0, 2).toUpperCase();
+    }
+    
+    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
+
+/**
+ * Generate a random color for avatar
+ * @param {string} str - String to generate color from
+ * @returns {string} CSS gradient string
+ */
+export function getAvatarGradient(str) {
+    // Generate a hash from the string
     let hash = 0;
-    for (let i = 0; i < username.length; i++) {
-        hash = username.charCodeAt(i) + ((hash << 5) - hash);
-        hash = hash & hash;
+    for (let i = 0; i < str.length; i++) {
+        hash = str.charCodeAt(i) + ((hash << 5) - hash);
     }
-
-    // Convert to HSL
-    const hue = Math.abs(hash % 360);
-    const saturation = 65;
-    const lightness = 55;
-
-    const hue2 = (hue + 30) % 360;
-
-    return `linear-gradient(135deg,
-        hsl(${hue}, ${saturation}%, ${lightness}%) 0%,
-        hsl(${hue2}, ${saturation}%, ${lightness + 10}%) 100%)`;
+    
+    // Convert to colors
+    const hue1 = hash % 360;
+    const hue2 = (hash + 120) % 360;
+    
+    return `linear-gradient(135deg, hsl(${hue1}, 70%, 60%) 0%, hsl(${hue2}, 70%, 50%) 100%)`;
 }
 
 /**
- * Format timestamp to time string
+ * Sanitize HTML to prevent XSS
+ * @param {string} str - String to sanitize
+ * @returns {string} Sanitized string
  */
-export function formatTime(timestamp) {
-    const date = new Date(timestamp);
-    const hours = date.getHours().toString().padStart(2, '0');
-    const minutes = date.getMinutes().toString().padStart(2, '0');
-    return `${hours}:${minutes}`;
+export function sanitizeHTML(str) {
+    const temp = document.createElement('div');
+    temp.textContent = str;
+    return temp.innerHTML;
 }
 
 /**
- * Format timestamp to date string
- */
-export function formatDate(timestamp) {
-    const date = new Date(timestamp);
-    const today = new Date();
-    const yesterday = new Date(today);
-    yesterday.setDate(yesterday.getDate() - 1);
-
-    const isToday = date.toDateString() === today.toDateString();
-    const isYesterday = date.toDateString() === yesterday.toDateString();
-
-    if (isToday) return 'Heute';
-    if (isYesterday) return 'Gestern';
-
-    const day = date.getDate().toString().padStart(2, '0');
-    const month = (date.getMonth() + 1).toString().padStart(2, '0');
-    const year = date.getFullYear();
-
-    return `${day}.${month}.${year}`;
-}
-
-/**
- * Simple markdown parser
+ * Parse markdown-like formatting
+ * @param {string} text - Text with markdown
+ * @returns {string} HTML string
  */
 export function parseMarkdown(text) {
     if (!text) return '';
-
-    let html = text;
-
+    
+    // Sanitize first
+    let html = sanitizeHTML(text);
+    
     // Bold: **text** or __text__
     html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
     html = html.replace(/__(.+?)__/g, '<strong>$1</strong>');
-
+    
     // Italic: *text* or _text_
     html = html.replace(/\*(.+?)\*/g, '<em>$1</em>');
     html = html.replace(/_(.+?)_/g, '<em>$1</em>');
-
-    // Code: `code`
+    
+    // Inline code: `text`
     html = html.replace(/`(.+?)`/g, '<code>$1</code>');
-
+    
     // Line breaks
     html = html.replace(/\n/g, '<br>');
-
+    
     return html;
 }
 
 /**
- * Scroll to bottom of element
- */
-export function scrollToBottom(element) {
-    if (element) {
-        element.scrollTop = element.scrollHeight;
-    }
-}
-
-/**
- * Check if element is scrolled to bottom
- */
-export function isScrolledToBottom(element, threshold = 100) {
-    if (!element) return false;
-    return element.scrollHeight - element.scrollTop - element.clientHeight < threshold;
-}
-
-/**
- * Show error message
- */
-export function showError(elementId, message) {
-    const element = document.getElementById(elementId);
-    if (element) {
-        element.textContent = message;
-        element.classList.add('show');
-    }
-}
-
-/**
- * Hide error message
- */
-export function hideError(elementId) {
-    const element = document.getElementById(elementId);
-    if (element) {
-        element.textContent = '';
-        element.classList.remove('show');
-    }
-}
-
-/**
  * Debounce function
+ * @param {Function} func - Function to debounce
+ * @param {number} wait - Wait time in milliseconds
+ * @returns {Function} Debounced function
  */
 export function debounce(func, wait) {
     let timeout;
@@ -155,88 +142,192 @@ export function debounce(func, wait) {
 }
 
 /**
+ * Show error message in form
+ * @param {string} elementId - Error element ID
+ * @param {string} message - Error message
+ */
+export function showError(elementId, message) {
+    const errorElement = document.getElementById(elementId);
+    if (errorElement) {
+        errorElement.textContent = message;
+        errorElement.classList.add('show');
+        errorElement.classList.remove('success'); // Remove success class if present
+        
+        // Auto-hide after 5 seconds
+        setTimeout(() => {
+            errorElement.classList.remove('show');
+        }, 5000);
+    }
+}
+
+/**
+ * Hide error message
+ * @param {string} elementId - Error element ID
+ */
+export function hideError(elementId) {
+    const errorElement = document.getElementById(elementId);
+    if (errorElement) {
+        errorElement.classList.remove('show', 'success');
+    }
+}
+
+/**
+ * Show success message in form
+ * @param {string} elementId - Error element ID (reuses error divs for success)
+ * @param {string} message - Success message
+ */
+export function showSuccess(elementId, message) {
+    const errorElement = document.getElementById(elementId);
+    if (errorElement) {
+        errorElement.textContent = message;
+        errorElement.classList.add('show', 'success');
+        
+        // Auto-hide after 3 seconds
+        setTimeout(() => {
+            errorElement.classList.remove('show', 'success');
+        }, 3000);
+    }
+}
+
+/**
+ * Set loading state on button
+ * @param {HTMLElement} button - Button element
+ * @param {boolean} loading - Loading state
+ */
+export function setButtonLoading(button, loading) {
+    if (loading) {
+        button.disabled = true;
+    } else {
+        button.disabled = false;
+    }
+}
+
+/**
+ * Scroll to bottom of element
+ * @param {HTMLElement} element - Element to scroll
+ * @param {boolean} smooth - Use smooth scrolling
+ */
+export function scrollToBottom(element, smooth = true) {
+    if (!element) return;
+    
+    element.scrollTo({
+        top: element.scrollHeight,
+        behavior: smooth ? 'smooth' : 'auto'
+    });
+}
+
+/**
+ * Check if element is scrolled to bottom
+ * @param {HTMLElement} element - Element to check
+ * @param {number} threshold - Threshold in pixels
+ * @returns {boolean} True if at bottom
+ */
+export function isScrolledToBottom(element, threshold = 100) {
+    if (!element) return false;
+    return element.scrollHeight - element.scrollTop - element.clientHeight < threshold;
+}
+
+/**
  * Play notification sound
  */
 export function playNotificationSound() {
-    // Simple beep using Audio API
-    const context = new (window.AudioContext || window.webkitAudioContext)();
-    const oscillator = context.createOscillator();
-    const gainNode = context.createGain();
-
-    oscillator.connect(gainNode);
-    gainNode.connect(context.destination);
-
-    oscillator.frequency.value = 800;
-    oscillator.type = 'sine';
-
-    gainNode.gain.setValueAtTime(0.3, context.currentTime);
-    gainNode.gain.exponentialRampToValueAtTime(0.01, context.currentTime + 0.5);
-
-    oscillator.start(context.currentTime);
-    oscillator.stop(context.currentTime + 0.5);
+    // Create a simple beep sound using Web Audio API
+    try {
+        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        const oscillator = audioContext.createOscillator();
+        const gainNode = audioContext.createGain();
+        
+        oscillator.connect(gainNode);
+        gainNode.connect(audioContext.destination);
+        
+        oscillator.frequency.value = 800;
+        oscillator.type = 'sine';
+        
+        gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.1);
+        
+        oscillator.start(audioContext.currentTime);
+        oscillator.stop(audioContext.currentTime + 0.1);
+    } catch (error) {
+        console.log('Could not play notification sound:', error);
+    }
 }
 
 /**
  * Show browser notification
+ * @param {string} title - Notification title
+ * @param {string} body - Notification body
  */
 export function showNotification(title, body) {
-    if ('Notification' in window && Notification.permission === 'granted') {
-        new Notification(title, {
-            body: body,
-            icon: '/favicon.ico',
+    if (!('Notification' in window)) {
+        return;
+    }
+    
+    if (Notification.permission === 'granted') {
+        new Notification(title, { body, icon: '/assets/images/logo.png' });
+    } else if (Notification.permission !== 'denied') {
+        Notification.requestPermission().then(permission => {
+            if (permission === 'granted') {
+                new Notification(title, { body, icon: '/assets/images/logo.png' });
+            }
         });
     }
 }
 
+/**
+ * Copy text to clipboard
+ * @param {string} text - Text to copy
+ * @returns {Promise<void>}
+ */
+export async function copyToClipboard(text) {
+    try {
+        await navigator.clipboard.writeText(text);
+        return true;
+    } catch (error) {
+        console.error('Failed to copy to clipboard:', error);
+        return false;
+    }
+}
+
+/**
+ * Validate email format
+ * @param {string} email - Email to validate
+ * @returns {boolean} True if valid
+ */
+export function isValidEmail(email) {
+    const regex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return regex.test(email);
+}
+
+/**
+ * Validate password strength
+ * @param {string} password - Password to validate
+ * @returns {object} {valid: boolean, message: string}
+ */
+export function validatePassword(password) {
+    if (password.length < 8) {
+        return { valid: false, message: 'Passwort muss mindestens 8 Zeichen lang sein' };
+    }
+    return { valid: true, message: '' };
+}
+
 export default {
+    formatDate,
+    formatTime,
     getInitials,
     getAvatarGradient,
-    formatTime,
-    formatDate,
+    sanitizeHTML,
     parseMarkdown,
-    scrollToBottom,
-    isScrolledToBottom,
+    debounce,
     showError,
     hideError,
-    debounce,
+    showSuccess,
+    setButtonLoading,
+    scrollToBottom,
+    isScrolledToBottom,
     playNotificationSound,
     showNotification,
+    copyToClipboard,
+    isValidEmail,
+    validatePassword,
 };
-
-/**
- * Show toast notification
- */
-export function showToast(message, type = 'info') {
-    const toast = document.createElement('div');
-    toast.className = `toast toast-${type}`;
-    toast.textContent = message;
-
-    document.body.appendChild(toast);
-
-    // Animate in
-    setTimeout(() => toast.classList.add('show'), 10);
-
-    // Remove after 3 seconds
-    setTimeout(() => {
-        toast.classList.remove('show');
-        setTimeout(() => toast.remove(), 300);
-    }, 3000);
-}
-
-/**
- * Handle API errors
- */
-export function handleError(error, context = '') {
-    console.error(`Error in ${context}:`, error);
-
-    let message = 'Ein Fehler ist aufgetreten';
-
-    if (error.message) {
-        message = error.message;
-    } else if (typeof error === 'string') {
-        message = error;
-    }
-
-    showToast(message, 'error');
-    return message;
-}

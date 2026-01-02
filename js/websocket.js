@@ -1,209 +1,223 @@
 /**
  * WebSocket Service
- * Handles real-time communication
+ * Robust gegen unterschiedliche Message-Shapes
  */
-
 import API_CONFIG from '../config/api.config.js';
 
 class WebSocketService {
-    constructor() {
-        this.ws = null;
+  constructor() {
+    this.ws = null;
+    this.connected = false;
+
+    this.reconnectAttempts = 0;
+    this.maxReconnectAttempts = 5;
+    this.reconnectDelay = 3000;
+
+    this.eventHandlers = new Map();
+
+    // “connected aber empfängt nix” erkennen
+    this.lastMessageAt = 0;
+    this.staleAfterMs = 15000;
+  }
+
+  normalizeWsUrl(url) {
+    if (!url) return url;
+    if (url.startsWith('https://')) return 'wss://' + url.slice('https://'.length);
+    if (url.startsWith('http://')) return 'ws://' + url.slice('http://'.length);
+    return url;
+  }
+
+  /**
+   * Safely send JSON to WS (no crash if not open)
+   */
+  safeSend(obj) {
+    try {
+      if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+        this.ws.send(JSON.stringify(obj));
+      }
+    } catch (e) {
+      console.error('WS send failed:', e);
+    }
+  }
+
+  connect() {
+    try {
+      if (this.ws && (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING)) {
+        return;
+      }
+
+      // --- Token (JWT) beim WS Connect mitsenden ---
+      const baseUrl = this.normalizeWsUrl(API_CONFIG.WS_URL);
+
+      // Token liegt bei dir unter STORAGE.TOKEN = 'livechat_token'
+      const token = localStorage.getItem(API_CONFIG.STORAGE.TOKEN);
+
+      // Option 1: Token als Query-Param
+      const url = token ? `${baseUrl}?token=${encodeURIComponent(token)}` : baseUrl;
+
+      this.ws = new WebSocket(url);
+
+      this.ws.onopen = () => {
+        console.log('WebSocket connected:', url);
+        this.connected = true;
         this.reconnectAttempts = 0;
-        this.maxReconnectAttempts = 5;
-        this.reconnectDelay = 3000;
-        this.reconnectTimer = null;
-        this.isConnecting = false;
-        this.messageHandlers = new Set();
-        this.connectionHandlers = new Set();
-    }
+        this.lastMessageAt = Date.now();
+        this.emit('connected');
 
-    /**
-     * Connect to WebSocket server
-     */
-    connect(token) {
-        if (this.isConnecting || (this.ws && this.ws.readyState === WebSocket.OPEN)) {
-            console.log('⚠️ WebSocket already connecting or connected');
-            return;
+        // Option 2: Zusätzlich Auth-Message senden (falls Backend das braucht)
+        if (token) {
+          // mehrere mögliche Auth-Events probieren (robust)
+          this.safeSend({ event: 'auth', token });
+          this.safeSend({ type: 'auth', token });
+          this.safeSend({ event: 'authenticate', token });
+          this.safeSend({ type: 'authenticate', token });
+          this.safeSend({ event: 'login', token });
+          this.safeSend({ type: 'login', token });
         }
+      };
 
-        this.isConnecting = true;
-        console.log('🔌 Connecting to WebSocket...');
+      this.ws.onmessage = (event) => {
+        this.lastMessageAt = Date.now();
+        this.handleMessage(event.data);
+      };
 
-        try {
-            // Connect with token as query parameter
-            const wsUrl = `${API_CONFIG.WS_URL}?token=${token}`;
-            this.ws = new WebSocket(wsUrl);
+      this.ws.onclose = (event) => {
+        console.warn('WebSocket closed:', event.code, event.reason);
+        this.connected = false;
+        this.emit('disconnected');
 
-            this.ws.onopen = this.handleOpen.bind(this);
-            this.ws.onmessage = this.handleMessage.bind(this);
-            this.ws.onerror = this.handleError.bind(this);
-            this.ws.onclose = this.handleClose.bind(this);
+        if (event.code !== 1000) this.attemptReconnect();
+      };
 
-        } catch (error) {
-            console.error('❌ WebSocket connection error:', error);
-            this.isConnecting = false;
-            this.scheduleReconnect(token);
-        }
+      this.ws.onerror = (error) => {
+        console.error('WebSocket error:', error);
+        this.connected = false;
+        this.emit('error', error);
+      };
+    } catch (err) {
+      console.error('Failed to connect WebSocket:', err);
+      this.connected = false;
+    }
+  }
+
+  attemptReconnect() {
+    if (this.reconnectAttempts >= this.maxReconnectAttempts) {
+      console.warn('Max reconnect attempts reached');
+      this.emit('reconnect_failed');
+      return;
     }
 
-    /**
-     * Handle WebSocket open
-     */
-    handleOpen(event) {
-        console.log('✅ WebSocket connected');
-        this.isConnecting = false;
-        this.reconnectAttempts = 0;
+    this.reconnectAttempts++;
+    setTimeout(() => this.connect(), this.reconnectDelay);
+  }
 
-        // Notify connection handlers
-        this.connectionHandlers.forEach(handler => {
-            try {
-                handler(true);
-            } catch (error) {
-                console.error('Error in connection handler:', error);
-            }
-        });
+  handleMessage(raw) {
+    try {
+      const msg = JSON.parse(raw);
+
+      // mehrere Shapes akzeptieren
+      const event = msg?.event ?? msg?.type;
+      const payload = msg?.payload ?? msg?.data ?? msg?.message ?? msg?.user ?? msg;
+
+      if (!event) {
+        console.warn('WS message without event/type:', msg);
+        this.emit('raw', msg);
+        return;
+      }
+
+      // Backend-Events: new_message/new_login/changed_user/deleted_user/...
+      switch (event) {
+        case 'new_message':
+          this.emit('message', payload);
+          break;
+
+        case 'new_login':
+        case 'changed_user':
+          this.emit('user_joined', payload);
+          break;
+
+        case 'deleted_user':
+          this.emit('user_left', payload);
+          break;
+
+        case 'changed_message':
+          this.emit('message_updated', payload);
+          break;
+
+        case 'deleted_message':
+          this.emit('message_deleted', payload);
+          break;
+
+        default:
+          this.emit(event, payload);
+      }
+    } catch (err) {
+      console.error('Failed to handle WS message:', err, raw);
     }
+  }
 
-    /**
-     * Handle incoming WebSocket message
-     */
-    handleMessage(event) {
-        try {
-            const data = JSON.parse(event.data);
-            console.log('📨 WebSocket message:', data);
+  on(event, handler) {
+    if (!this.eventHandlers.has(event)) this.eventHandlers.set(event, []);
+    this.eventHandlers.get(event).push(handler);
+  }
 
-            // Notify message handlers
-            this.messageHandlers.forEach(handler => {
-                try {
-                    handler(data);
-                } catch (error) {
-                    console.error('Error in message handler:', error);
-                }
-            });
+  emit(event, data) {
+    if (!this.eventHandlers.has(event)) return;
+    this.eventHandlers.get(event).forEach((h) => {
+      try {
+        h(data);
+      } catch (e) {
+        console.error('Handler error:', e);
+      }
+    });
+  }
 
-        } catch (error) {
-            console.error('❌ Error parsing WebSocket message:', error);
-        }
+  isConnected() {
+    return this.connected;
+  }
+
+  isStale() {
+    if (!this.connected) return true;
+    if (!this.lastMessageAt) return true;
+    return Date.now() - this.lastMessageAt > this.staleAfterMs;
+  }
+
+  /**
+   * Used by chat.js
+   */
+  sendMessage(receiverId, text) {
+    // mehrere mögliche Shapes (robust)
+    this.safeSend({ event: 'message', receiverId, message: text });
+    this.safeSend({ type: 'message', receiverId, message: text });
+
+    this.safeSend({ event: 'message', to: receiverId, message: text });
+    this.safeSend({ type: 'message', to: receiverId, message: text });
+  }
+
+  /**
+   * Used by chat.js
+   */
+  sendTyping(receiverId, isTyping) {
+    const evt = isTyping ? 'start_typing' : 'stop_typing';
+
+    this.safeSend({ event: evt, to: receiverId });
+    this.safeSend({ type: evt, to: receiverId });
+
+    // fallback shape
+    this.safeSend({ event: 'typing', receiverId, isTyping });
+    this.safeSend({ type: 'typing', receiverId, isTyping });
+  }
+
+  disconnect() {
+    if (!this.ws) return;
+    try {
+      this.ws.close(1000, 'Client disconnect');
+    } finally {
+      this.ws = null;
+      this.connected = false;
     }
-
-    /**
-     * Handle WebSocket error
-     */
-    handleError(event) {
-        console.error('❌ WebSocket error:', event);
-        this.isConnecting = false;
-    }
-
-    /**
-     * Handle WebSocket close
-     */
-    handleClose(event) {
-        console.log('🔌 WebSocket closed:', event.code, event.reason);
-        this.isConnecting = false;
-        this.ws = null;
-
-        // Notify connection handlers
-        this.connectionHandlers.forEach(handler => {
-            try {
-                handler(false);
-            } catch (error) {
-                console.error('Error in connection handler:', error);
-            }
-        });
-
-        // Attempt to reconnect
-        if (event.code !== 1000) { // 1000 = Normal closure
-            const token = localStorage.getItem(API_CONFIG.STORAGE.TOKEN);
-            if (token) {
-                this.scheduleReconnect(token);
-            }
-        }
-    }
-
-    /**
-     * Schedule reconnection attempt
-     */
-    scheduleReconnect(token) {
-        if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-            console.error('❌ Max reconnection attempts reached');
-            return;
-        }
-
-        if (this.reconnectTimer) {
-            clearTimeout(this.reconnectTimer);
-        }
-
-        this.reconnectAttempts++;
-        const delay = this.reconnectDelay * this.reconnectAttempts;
-
-        console.log(`🔄 Attempting to reconnect (${this.reconnectAttempts}/${this.maxReconnectAttempts}) in ${delay}ms`);
-
-        this.reconnectTimer = setTimeout(() => {
-            this.connect(token);
-        }, delay);
-    }
-
-    /**
-     * Send message through WebSocket
-     */
-    send(data) {
-        if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
-            console.error('❌ WebSocket not connected');
-            return false;
-        }
-
-        try {
-            this.ws.send(JSON.stringify(data));
-            return true;
-        } catch (error) {
-            console.error('❌ Error sending WebSocket message:', error);
-            return false;
-        }
-    }
-
-    /**
-     * Add message handler
-     */
-    onMessage(handler) {
-        this.messageHandlers.add(handler);
-        return () => this.messageHandlers.delete(handler);
-    }
-
-    /**
-     * Add connection handler
-     */
-    onConnection(handler) {
-        this.connectionHandlers.add(handler);
-        return () => this.connectionHandlers.delete(handler);
-    }
-
-    /**
-     * Disconnect WebSocket
-     */
-    disconnect() {
-        if (this.reconnectTimer) {
-            clearTimeout(this.reconnectTimer);
-            this.reconnectTimer = null;
-        }
-
-        if (this.ws) {
-            this.ws.close(1000, 'Client disconnect');
-            this.ws = null;
-        }
-
-        this.reconnectAttempts = 0;
-        this.isConnecting = false;
-    }
-
-    /**
-     * Check if connected
-     */
-    isConnected() {
-        return this.ws && this.ws.readyState === WebSocket.OPEN;
-    }
+  }
 }
 
-// Create singleton instance
 const wsService = new WebSocketService();
-
 export default wsService;

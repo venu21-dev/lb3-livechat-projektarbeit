@@ -1,34 +1,37 @@
 /**
- * API Configuration
+ * API Configuration - TEST VERSION
  * Backend: https://chat.ndum.ch/api/v1
  */
 
 export const API_CONFIG = {
     // Base URLs
     BASE_URL: 'https://chat.ndum.ch/api/v1',
+    
+    // Option 1: Root (wahrscheinlichste)
     WS_URL: 'wss://chat.ndum.ch',
-
+    
     // API Endpoints
     ENDPOINTS: {
         // Auth
         REGISTER: '/auth/register',
         LOGIN: '/auth/login',
-
+        
         // Users
         USERS: '/users',
         USER_BY_ID: (id) => `/users/${id}`,
         UPDATE_USER: (id) => `/users/${id}`,
         DELETE_USER: (id) => `/users/${id}`,
-
+        
         // Messages
         MESSAGES: '/messages',
         MESSAGE_BY_ID: (id) => `/messages/${id}`,
         UPDATE_MESSAGE: (id) => `/messages/${id}`,
         DELETE_MESSAGE: (id) => `/messages/${id}`,
     },
-
-    // WebSocket Events
+    
+    // WebSocket Events - TESTE BEIDE VERSIONEN!
     WS_EVENTS: {
+        // VERSION 1: Aus dem README (für lokales Backend)
         // Receive
         MESSAGE: 'new_message',
         USER_JOINED: 'new_login',
@@ -41,10 +44,10 @@ export const API_CONFIG = {
         START_TYPING: 'start_typing',
         STOP_TYPING: 'stop_typing',
     },
-
+    
     // Request Configuration
     TIMEOUT: 10000,
-
+    
     // Storage Keys
     STORAGE: {
         TOKEN: 'livechat_token',
