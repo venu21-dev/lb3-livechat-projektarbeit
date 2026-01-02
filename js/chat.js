@@ -1,75 +1,25 @@
 /**
  * Chat Module
- * Handles chat UI and user list
+ * Handles chat UI and message rendering
  */
-import wsService from './websocket.js';
+
 import * as API from './api.js';
+import wsService from './websocket.js';
 import { logout } from './auth.js';
-import {
-    getInitials,
-    getAvatarGradient,
+import { 
+    getInitials, 
+    getAvatarGradient, 
+    formatTime, 
+    formatDate,
+    parseMarkdown,
+    scrollToBottom,
+    isScrolledToBottom,
     showError,
     hideError,
-    parseMarkdown, 
-    playNotificationSound, 
-    showNotification,
-    handleError,
-    showToast
+    debounce,
+    playNotificationSound,
+    showNotification
 } from './utils.js';
-
-// Cache key for sent messages
-const SENT_MESSAGES_CACHE_KEY = 'livechat_sent_messages_';
-
-/**
- * Get cache key for current user
- */
-function getCacheKey(userId) {
-    return SENT_MESSAGES_CACHE_KEY + userId;
-}
-
-/**
- * Get sent messages from cache
- */
-function getSentMessagesCache(userId) {
-    try {
-        const cached = localStorage.getItem(getCacheKey(userId));
-        return cached ? JSON.parse(cached) : [];
-    } catch (error) {
-        console.error('Error reading cache:', error);
-        return [];
-    }
-}
-
-/**
- * Save sent messages to cache
- */
-function saveSentMessagesCache(userId, messages) {
-    try {
-        localStorage.setItem(getCacheKey(userId), JSON.stringify(messages));
-    } catch (error) {
-        console.error('Error saving cache:', error);
-    }
-}
-
-/**
- * Add message to cache
- */
-function addToCache(userId, message) {
-    const cached = getSentMessagesCache(userId);
-    cached.push({
-        id: message.id || message._id,
-        timestamp: message.created_at || message.timestamp || new Date().toISOString()
-    });
-    saveSentMessagesCache(userId, cached);
-}
-
-/**
- * Check if message is in cache
- */
-function isInCache(userId, messageId) {
-    const cached = getSentMessagesCache(userId);
-    return cached.some(m => m.id === messageId);
-}
 
 class ChatManager {
     constructor() {
@@ -77,349 +27,36 @@ class ChatManager {
         this.currentRecipient = null;
         this.users = [];
         this.messages = [];
+        this.messagePollingInterval = null;
     }
-
+    
     /**
      * Initialize chat
      */
     async init() {
-        this.currentUser = API.getStoredUser();
-
-        if (!this.currentUser) {
-            console.error('No user found, redirecting to login');
-            window.location.href = 'index.html';
-            return;
+        // CRITICAL: Clean up old global cache (from previous version)
+        // This ensures privacy by removing shared cache from old code
+        if (localStorage.getItem('sent_messages_cache')) {
+            console.warn('🧹 Removing old global cache - upgrading to per-user cache for privacy');
+            localStorage.removeItem('sent_messages_cache');
         }
-
+        
+        this.currentUser = API.getStoredUser();
+        
         // Set up UI
         this.setupUI();
         this.setupEventListeners();
-
+        
         // Load initial data
         await this.loadUsers();
-        // Setup WebSocket
-        this.setupWebSocket();
-        // Request notification permission
-        await this.requestNotificationPermission();
-
+        
+        // Connect WebSocket
+        this.connectWebSocket();
+        
+        // Start polling for messages (fallback if WebSocket fails)
+        this.startMessagePolling();
     }
-
-
-    /**
-     * Request notification permission
-     */
-    async requestNotificationPermission() {
-        if ('Notification' in window && Notification.permission === 'default') {
-            try {
-                const permission = await Notification.requestPermission();
-                console.log('Notification permission:', permission);
-            } catch (error) {
-                console.error('Error requesting notification permission:', error);
-            }
-        }
-    }
-
-
-    /**
-     * Setup markdown buttons
-     */
-    setupMarkdownButtons() {
-        const mdButtons = document.querySelectorAll('.md-btn');
-        const messageInput = document.getElementById('message-input');
-
-        if (!messageInput) return;
-
-        mdButtons.forEach(button => {
-            button.addEventListener('click', () => {
-                const md = button.dataset.md;
-                const start = messageInput.selectionStart;
-                const end = messageInput.selectionEnd;
-                const text = messageInput.value;
-                const selectedText = text.substring(start, end);
-
-                let newText;
-                let newCursorPos;
-
-                if (selectedText) {
-                    // Wrap selected text
-                    newText = text.substring(0, start) + md + selectedText + md + text.substring(end);
-                    newCursorPos = end + (md.length * 2);
-                } else {
-                    // Insert markdown syntax
-                    newText = text.substring(0, start) + md + md + text.substring(end);
-                    newCursorPos = start + md.length;
-                }
-
-                messageInput.value = newText;
-                messageInput.focus();
-                messageInput.setSelectionRange(newCursorPos, newCursorPos);
-            });
-        });
-    }
-
-    /**
-     * Open profile modal
-     */
-    openProfileModal() {
-        const modal = document.getElementById('profile-modal');
-        const usernameInput = document.getElementById('profile-username');
-        const emailInput = document.getElementById('profile-email');
-
-        if (modal && usernameInput && emailInput) {
-            // Fill current values
-            usernameInput.value = this.currentUser.username;
-            emailInput.value = this.currentUser.email || '';
-
-            // Show modal
-            modal.classList.remove('hidden');
-
-            // Setup modal events
-            this.setupProfileModal();
-        }
-    }
-
-    /**
-     * Close profile modal
-     */
-    closeProfileModal() {
-        const modal = document.getElementById('profile-modal');
-        const passwordInput = document.getElementById('profile-password');
-        const passwordConfirm = document.getElementById('profile-password-confirm');
-
-        if (modal) {
-            modal.classList.add('hidden');
-
-            // Clear password fields
-            if (passwordInput) passwordInput.value = '';
-            if (passwordConfirm) passwordConfirm.value = '';
-        }
-    }
-
-    /**
-     * Setup profile modal events
-     */
-    setupProfileModal() {
-        // Close buttons
-        const closeBtn = document.getElementById('profile-modal-close');
-        const cancelBtn = document.getElementById('profile-cancel');
-        const overlay = document.getElementById('profile-modal-overlay');
-
-        const closeHandler = () => this.closeProfileModal();
-
-        if (closeBtn) {
-            closeBtn.removeEventListener('click', closeHandler);
-            closeBtn.addEventListener('click', closeHandler);
-        }
-        if (cancelBtn) {
-            cancelBtn.removeEventListener('click', closeHandler);
-            cancelBtn.addEventListener('click', closeHandler);
-        }
-        if (overlay) {
-            overlay.removeEventListener('click', closeHandler);
-            overlay.addEventListener('click', closeHandler);
-        }
-
-        // Form submit
-        const form = document.getElementById('profile-form');
-        if (form) {
-            form.removeEventListener('submit', this.handleProfileSubmit.bind(this));
-            form.addEventListener('submit', this.handleProfileSubmit.bind(this));
-        }
-    }
-
-    /**
-     * Handle profile form submit
-     */
-    async handleProfileSubmit(event) {
-        event.preventDefault();
-
-        const usernameInput = document.getElementById('profile-username');
-        const emailInput = document.getElementById('profile-email');
-        const passwordInput = document.getElementById('profile-password');
-        const passwordConfirm = document.getElementById('profile-password-confirm');
-
-        const username = usernameInput.value.trim();
-        const email = emailInput.value.trim();
-        const password = passwordInput.value;
-        const passwordConfirmValue = passwordConfirm.value;
-
-        // Validation
-        if (password && password !== passwordConfirmValue) {
-            showError('profile-error', 'Passwörter stimmen nicht überein');
-            return;
-        }
-
-        if (password && password.length < 6) {
-            showError('profile-error', 'Passwort muss mindestens 6 Zeichen lang sein');
-            return;
-        }
-
-        try {
-            hideError('profile-error');
-
-            // Prepare update data
-            const updateData = { username, email };
-            if (password) {
-                updateData.password = password;
-            }
-
-            // Update user
-            const userId = this.currentUser.id || this.currentUser._id;
-            const updated = await API.updateUser(userId, updateData);
-
-            // Update local user data
-            this.currentUser = { ...this.currentUser, ...updated };
-            API.saveAuthData(API.getToken(), this.currentUser);
-
-            // Update UI
-            this.setupUI();
-
-            // Close modal
-            this.closeProfileModal();
-
-            console.log('✅ Profile updated');
-
-        } catch (error) {
-            console.error('Error updating profile:', error);
-            showError('profile-error', error.message || 'Fehler beim Speichern');
-        }
-    }
-    /**
-     * Setup WebSocket connection
-     */
-    setupWebSocket() {
-        const token = API.getToken();
-        if (!token) {
-            console.error('No token found for WebSocket');
-            return;
-        }
-
-        // Connect to WebSocket
-        wsService.connect(token);
-
-        // Handle incoming messages
-        wsService.onMessage((data) => {
-            console.log('WebSocket message received:', data);
-
-            // Handle new message
-            if (data.type === 'new_message' || data.message) {
-                this.handleNewMessage(data);
-            }
-
-            // Handle user joined
-            if (data.type === 'new_login' || data.user) {
-                this.handleUserJoined(data);
-            }
-
-            // Handle user left
-            if (data.type === 'deleted_user') {
-                this.handleUserLeft(data);
-            }
-        });
-
-        // Handle connection status
-        wsService.onConnection((connected) => {
-            console.log('WebSocket connection status:', connected);
-            // TODO: Show connection status in UI
-        });
-    }
-
-    /**
-     * Handle new message from WebSocket
-     */
-        handleNewMessage(data) {
-            const message = data.message || data;
-
-            // Check if message already exists
-            const messageId = message.id || message._id;
-            const exists = this.messages.some(m =>
-                (m.id || m._id) === messageId
-            );
-
-            if (!exists) {
-                // Add message to array
-                this.messages.push(message);
-
-                // Check if message is from another user
-                const currentUserId = this.currentUser.id || this.currentUser._id;
-                const senderId = message.user?.id || message.user?._id || message.sender_id;
-                const isOwnMessage = senderId === currentUserId;
-
-                // Re-render if chat is active
-                if (this.currentRecipient) {
-                    this.renderMessages();
-                }
-
-                // Show notification if not own message
-                if (!isOwnMessage) {
-                    const senderName = message.user?.username || 'Someone';
-                    const messageText = message.message || message.text || '';
-
-                    // Play sound
-                    playNotificationSound();
-
-                    // Show browser notification
-                    showNotification(
-                        `Neue Nachricht von ${senderName}`,
-                        messageText.substring(0, 50) + (messageText.length > 50 ? '...' : '')
-                    );
-                }
-
-                console.log('✅ New message added via WebSocket');
-            }
-        }
-
-
-            /**
-             * Show unread count badge
-             */
-            updateUnreadCount() {
-                // TODO: Implement unread count in UI
-                // For now, just log
-                const unreadCount = this.messages.filter(m => {
-                    const senderId = m.user?.id || m.user?._id || m.sender_id;
-                    const currentUserId = this.currentUser.id || this.currentUser._id;
-                    return senderId !== currentUserId && !m.read;
-                }).length;
-
-                console.log('Unread messages:', unreadCount);
-            }
-
-
-    /**
-     * Handle user joined from WebSocket
-     */
-    handleUserJoined(data) {
-        const user = data.user || data;
-
-        // Check if user already exists
-        const userId = user.id || user._id;
-        const exists = this.users.some(u =>
-            (u.id || u._id) === userId
-        );
-
-        if (!exists) {
-            this.users.push(user);
-            this.renderUserList();
-            console.log('✅ User joined:', user.username);
-        }
-    }
-
-    /**
-     * Handle user left from WebSocket
-     */
-    handleUserLeft(data) {
-        const userId = data.user_id || data.id;
-
-        // Remove user from list
-        this.users = this.users.filter(u =>
-            (u.id || u._id) !== userId
-        );
-
-        this.renderUserList();
-        console.log('👋 User left');
-    }
-
+    
     /**
      * Setup UI elements
      */
@@ -428,7 +65,7 @@ class ChatManager {
         const currentUserName = document.getElementById('current-user-name');
         const currentUserEmail = document.getElementById('current-user-email');
         const currentUserInitial = document.getElementById('current-user-initial');
-
+        
         if (currentUserName) currentUserName.textContent = this.currentUser.username;
         if (currentUserEmail) currentUserEmail.textContent = this.currentUser.email || '';
         if (currentUserInitial) {
@@ -439,7 +76,7 @@ class ChatManager {
             }
         }
     }
-
+    
     /**
      * Setup event listeners
      */
@@ -451,18 +88,13 @@ class ChatManager {
                 logout();
             });
         }
-
-        this.setupMessageForm();
         
         // Settings button
-
         const settingsBtn = document.getElementById('settings-btn');
         if (settingsBtn) {
-        settingsBtn.addEventListener('click', () => {
-        this.openProfileModal();
-    });
-}
-
+            settingsBtn.addEventListener('click', () => this.openProfileModal());
+        }
+        
         // Mobile menu button
         const mobileMenuBtn = document.getElementById('mobile-menu-btn');
         const sidebar = document.getElementById('sidebar');
@@ -471,99 +103,98 @@ class ChatManager {
                 sidebar.classList.toggle('hidden');
             });
         }
+        
+        // Message form
+        const messageForm = document.getElementById('message-form');
+        if (messageForm) {
+            messageForm.addEventListener('submit', (e) => this.handleSendMessage(e));
+        }
+        
+        // Message input for typing indicator
+        const messageInput = document.getElementById('message-input');
+        if (messageInput) {
+            let typingTimeout;
+            messageInput.addEventListener('input', () => {
+                if (this.currentRecipient) {
+                    wsService.sendTyping(this.currentRecipient.id || this.currentRecipient._id, true);
+                    
+                    clearTimeout(typingTimeout);
+                    typingTimeout = setTimeout(() => {
+                        wsService.sendTyping(this.currentRecipient.id || this.currentRecipient._id, false);
+                    }, 1000);
+                }
+            });
+        }
+        
+        // Profile modal
+        this.setupProfileModal();
     }
-
+    
     /**
      * Load all users
      */
-    async loadMessages() {
-    this.showLoading(true);
-
-    try {
-        const allMessages = await API.getMessages();
-
-        // Filter messages using cache
-        const currentUserId = this.currentUser.id || this.currentUser._id;
-        const sentCache = getSentMessagesCache(currentUserId);
-
-        // Only show:
-        // 1. Messages sent by current user (in cache)
-        // 2. Messages sent TO current user (received)
-        this.messages = allMessages.filter(message => {
-            const messageId = message.id || message._id;
-            const senderId = message.user?.id || message.user?._id || message.sender_id;
-
-            // Keep if sent by current user (check cache)
-            if (senderId === currentUserId && isInCache(currentUserId, messageId)) {
-                return true;
-            }
-
-            // Keep if sent TO current user
-            if (message.receiver_id === currentUserId) {
-                return true;
-            }
-
-            return false;
-        });
-
-        this.renderMessages();
-} catch (error) {
-    handleError(error, 'loadMessages');
-    showToast('Fehler beim Laden der Nachrichten', 'error');
-}
-}
-
+    async loadUsers() {
+        try {
+            this.users = await API.getUsers();
+            this.renderUserList();
+        } catch (error) {
+            console.error('Error loading users:', error);
+            showError('chat-error', 'Fehler beim Laden der Benutzerliste');
+        }
+    }
+    
     /**
      * Render user list in sidebar
      */
     renderUserList() {
         const userList = document.getElementById('user-list');
         const userCount = document.getElementById('user-count');
-
+        
         if (!userList) return;
-
+        
         // Filter out current user
-        const otherUsers = this.users.filter(u =>
+        const otherUsers = this.users.filter(u => 
             (u.id || u._id) !== (this.currentUser.id || this.currentUser._id)
         );
-
+        
         // Update count
         if (userCount) {
             userCount.textContent = otherUsers.length;
         }
-
+        
         // Clear list
         userList.innerHTML = '';
-
+        
         // Render users
         otherUsers.forEach(user => {
             const userItem = this.createUserItem(user);
             userList.appendChild(userItem);
         });
     }
-
+    
     /**
      * Create user item element
+     * @param {object} user - User data
+     * @returns {HTMLElement} User item element
      */
     createUserItem(user) {
         const div = document.createElement('div');
         div.className = 'user-item';
         div.dataset.userId = user.id || user._id;
-
-        const isActive = this.currentRecipient &&
+        
+        const isActive = this.currentRecipient && 
             (user.id || user._id) === (this.currentRecipient.id || this.currentRecipient._id);
-
+        
         if (isActive) {
             div.classList.add('active');
         }
-
+        
         const initial = getInitials(user.username);
         const gradient = getAvatarGradient(user.username);
-
+        
         div.innerHTML = `
             <div class="user-avatar" style="background: ${gradient};">
                 <span>${initial}</span>
-                <div class="status-indicator online"></div>
             </div>
             <div class="user-info">
                 <div class="user-name">${user.username}</div>
@@ -576,20 +207,21 @@ class ChatManager {
                 <polyline points="9 18 15 12 9 6"></polyline>
             </svg>
         `;
-
+        
         div.addEventListener('click', () => {
             this.selectUser(user);
         });
-
+        
         return div;
     }
-
+    
     /**
      * Select a user to chat with
+     * @param {object} user - User data
      */
     async selectUser(user) {
         this.currentRecipient = user;
-
+        
         // Update active state in user list
         document.querySelectorAll('.user-item').forEach(item => {
             item.classList.remove('active');
@@ -598,33 +230,32 @@ class ChatManager {
         if (userItem) {
             userItem.classList.add('active');
         }
-
+        
         // Update chat header
         this.updateChatHeader(user);
-
+        
         // Show chat UI
         this.showChatUI();
-
+        
+        // Load messages
+        await this.loadMessages();
+        
         // Hide sidebar on mobile
         if (window.innerWidth <= 768) {
             const sidebar = document.getElementById('sidebar');
             if (sidebar) sidebar.classList.add('hidden');
         }
-
-        console.log('Selected user:', user.username);
-        // Load messages
-        await this.loadMessages();
-
     }
-
+    
     /**
      * Update chat header with recipient info
+     * @param {object} user - User data
      */
     updateChatHeader(user) {
         const recipientName = document.getElementById('recipient-name');
         const recipientStatus = document.getElementById('recipient-status');
         const recipientInitial = document.getElementById('recipient-initial');
-
+        
         if (recipientName) recipientName.textContent = user.username;
         if (recipientStatus) {
             recipientStatus.innerHTML = `
@@ -640,7 +271,7 @@ class ChatManager {
             }
         }
     }
-
+    
     /**
      * Show chat UI elements
      */
@@ -649,188 +280,395 @@ class ChatManager {
         const chatHeader = document.getElementById('chat-header');
         const messagesContainer = document.getElementById('messages-container');
         const messageInputContainer = document.getElementById('message-input-container');
-
+        
         if (noChatSelected) noChatSelected.style.display = 'none';
         if (chatHeader) chatHeader.style.display = 'flex';
         if (messagesContainer) messagesContainer.style.display = 'block';
         if (messageInputContainer) messageInputContainer.style.display = 'block';
     }
-
-
+    
     /**
-     * Load messages
+     * Load messages for current recipient
      */
     async loadMessages() {
+        if (!this.currentRecipient) return;
+        
         try {
-            this.messages = await API.getMessages();
+            // Get all messages
+            const allMessages = await API.getMessages();
+            
+            const currentUsername = this.currentUser.username;
+            const recipientUsername = this.currentRecipient.username;
+            
+            // Get sent messages cache (per-user)
+            const sentCacheKey = `sent_messages_cache_${currentUsername}`;
+            const sentCache = JSON.parse(localStorage.getItem(sentCacheKey) || '{}');
+            
+            this.messages = allMessages.filter(msg => {
+                const senderUsername = msg.username;
+                const messageText = msg.message;
+                
+                // Messages FROM chat partner → always show
+                // NOTE: Backend limitation - we cannot distinguish which partner
+                // they sent it to, so we show ALL messages from this user
+                if (senderUsername === recipientUsername) {
+                    return true;
+                }
+                
+                // Messages FROM current user → check sent cache
+                if (senderUsername === currentUsername) {
+                    const messageKey = `msg_${messageText.trim()}`;
+                    const cached = sentCache[messageKey];
+                    
+                    if (cached && cached.recipientUsername === recipientUsername) {
+                        return true; // Show if sent to this recipient
+                    }
+                    return false; // Hide if sent to someone else
+                }
+                
+                return false;
+            });
+            
+            // Sort by timestamp
+            this.messages.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+            
+            // Render messages
             this.renderMessages();
+            
         } catch (error) {
             console.error('Error loading messages:', error);
         }
     }
-
+    
     /**
-     * Render messages in chat
+     * Render all messages
      */
     renderMessages() {
         const messagesList = document.getElementById('messages-list');
         if (!messagesList) return;
-
+        
+        const wasAtBottom = isScrolledToBottom(messagesList.parentElement);
+        
         messagesList.innerHTML = '';
-
-        if (this.messages.length === 0) {
-            messagesList.innerHTML = `
-                <div class="no-messages">
-                    <p>Noch keine Nachrichten. Schreibe die erste!</p>
-                </div>
-            `;
-            return;
-        }
-
-        this.messages.forEach((message, index) => {
-            const messageEl = this.createMessageElement(message);
-            messagesList.appendChild(messageEl);
+        
+        let lastDate = null;
+        
+        this.messages.forEach(message => {
+            const messageDate = new Date(message.createdAt).toDateString();
+            
+            // Add date divider if date changed
+            if (messageDate !== lastDate) {
+                const divider = document.createElement('div');
+                divider.className = 'date-divider';
+                divider.innerHTML = `<span>${formatDate(message.createdAt)}</span>`;
+                messagesList.appendChild(divider);
+                lastDate = messageDate;
+            }
+            
+            const messageElement = this.createMessageElement(message);
+            messagesList.appendChild(messageElement);
         });
-
+        
         // Scroll to bottom
-        messagesList.scrollTop = messagesList.scrollHeight;
+        if (wasAtBottom) {
+            scrollToBottom(messagesList.parentElement);
+        }
     }
-
+    
     /**
      * Create message element
+     * @param {object} message - Message data
+     * @returns {HTMLElement} Message element
      */
     createMessageElement(message) {
         const div = document.createElement('div');
-
-        const currentUserId = this.currentUser.id || this.currentUser._id;
-        const senderId = message.user?.id || message.user?._id || message.sender_id;
-        const isOwn = senderId === currentUserId;
-
-        div.className = `message ${isOwn ? 'own' : 'other'}`;
-
-        const senderName = message.user?.username || 'Unknown';
-        const initial = senderName.charAt(0).toUpperCase();
-        const gradient = getAvatarGradient(senderName);
-
-        const time = new Date(message.created_at || message.timestamp).toLocaleTimeString('de-DE', {
-            hour: '2-digit',
-            minute: '2-digit'
-        });
-
+        div.className = 'message';
+        
+        // Backend format: { username, message } not { sender, text }
+        const senderUsername = message.username;
+        const currentUsername = this.currentUser.username;
+        const isOwn = senderUsername === currentUsername;
+        
+        if (isOwn) {
+            div.classList.add('own');
+        }
+        
+        const sender = isOwn ? this.currentUser : this.currentRecipient;
+        const initial = getInitials(sender.username);
+        const gradient = getAvatarGradient(sender.username);
+        const time = formatTime(message.createdAt);
+        const text = parseMarkdown(message.message);  // Backend uses 'message' not 'text'
+        
         div.innerHTML = `
-            ${!isOwn ? `
-                <div class="message-avatar" style="background: ${gradient};">
-                    <span>${initial}</span>
-                </div>
-            ` : ''}
+            <div class="user-avatar avatar-sm" style="background: ${gradient};">
+                <span>${initial}</span>
+            </div>
             <div class="message-content">
-                ${!isOwn ? `<div class="message-sender">${senderName}</div>` : ''}
+                <div class="message-header">
+                    <span class="message-sender">${sender.username}</span>
+                    <span class="message-time">${time}</span>
+                </div>
                 <div class="message-bubble">
-                    <div class="message-text">${parseMarkdown(this.escapeHtml(message.message || message.text))}</div>
-                    <div class="message-time">${time}</div>
+                    ${text}
                 </div>
             </div>
         `;
-
+        
         return div;
     }
-
+    
     /**
-     * Escape HTML to prevent XSS
+     * Handle send message
+     * @param {Event} e - Form submit event
      */
-    escapeHtml(text) {
-        const div = document.createElement('div');
-        div.textContent = text;
-        return div.innerHTML;
-    }
-
-    /**
-     * Send message
-     */
-    async sendMessage(text) {
-        if (!text || !text.trim()) return;
-
+    async handleSendMessage(e) {
+        e.preventDefault();
+        
+        if (!this.currentRecipient) return;
+        
+        const messageInput = document.getElementById('message-input');
+        const text = messageInput.value.trim();
+        
+        if (!text) return;
+        
         try {
-            const currentUserId = this.currentUser.id || this.currentUser._id;
-            const message = await API.sendMessage(null, text.trim());
-
-            // Add to cache
-            addToCache(currentUserId, message);
-
-            // Add to messages array
-            this.messages.push(message);
-
-            // Re-render messages
-            this.renderMessages();
-
-            return message;
+            // Send via API
+            const receiverId = this.currentRecipient.id || this.currentRecipient._id;
+            await API.sendMessage(receiverId, text);
+            
+            // IMPORTANT: Cache sent message with receiver info (backend doesn't return this)
+            this.cacheSentMessage(receiverId, text);
+            
+            // Try to send via WebSocket as well
+            wsService.sendMessage(receiverId, text);
+            
+            // Clear input
+            messageInput.value = '';
+            
+            // Reload messages
+            await this.loadMessages();
+            
         } catch (error) {
-        handleError(error, 'sendMessage');
-        showToast('Nachricht konnte nicht gesendet werden', 'error');
-        throw error;
-}
-    }
-
-    /**
-     * Show loading state
-     */
-    showLoading(show = true) {
-        const messagesList = document.getElementById('messages-list');
-        if (!messagesList) return;
-
-        if (show) {
-            messagesList.innerHTML = '<div class="loading-messages"></div>';
+            console.error('Error sending message:', error);
+            showError('chat-error', 'Fehler beim Senden der Nachricht');
         }
     }
-
-
+    
     /**
-     * Setup message form
+     * Cache sent message locally (to know which messages were sent to which user)
+     * @param {string} receiverId - Receiver user ID
+     * @param {string} text - Message text
      */
-    setupMessageForm() {
-        const messageForm = document.getElementById('message-form');
-        const messageInput = document.getElementById('message-input');
-
-        if (messageForm && messageInput) {
-            messageForm.addEventListener('submit', async (e) => {
-                e.preventDefault();
-
-                const text = messageInput.value.trim();
-                if (!text) return;
-
-                try {
-                    // Disable input
-                    messageInput.disabled = true;
-
-                    // Send message
-                    await this.sendMessage(text);
-
-                    // Clear input
-                    messageInput.value = '';
-
-                } catch (error) {
-                    console.error('Error sending message:', error);
-                    alert('Fehler beim Senden der Nachricht');
-                } finally {
-                    messageInput.disabled = false;
-                    messageInput.focus();
+    cacheSentMessage(receiverId, text) {
+        try {
+            // CRITICAL: Cache must be per-user to prevent privacy leak!
+            const cacheKey = `sent_messages_cache_${this.currentUser.username}`;
+            const cache = JSON.parse(localStorage.getItem(cacheKey) || '{}');
+            
+            // Use message text as key (simple and effective)
+            const messageKey = `msg_${text.trim()}`;
+            
+            cache[messageKey] = {
+                receiverId: receiverId,
+                recipientUsername: this.currentRecipient.username,
+                timestamp: Date.now()
+            };
+            
+            // Clean old entries (older than 1 hour)
+            const oneHourAgo = Date.now() - 3600000;
+            Object.keys(cache).forEach(key => {
+                if (cache[key].timestamp < oneHourAgo) {
+                    delete cache[key];
                 }
             });
+            
+            localStorage.setItem(cacheKey, JSON.stringify(cache));
+            console.log('Cached message:', messageKey, '→', this.currentRecipient.username);
+        } catch (error) {
+            console.error('Error caching message:', error);
         }
-        this.setupMarkdownButtons();
     }
-
-    
-
-    
     
     /**
-     * Clear cache (for testing)
+     * Connect to WebSocket
      */
-    clearCache() {
-        const currentUserId = this.currentUser.id || this.currentUser._id;
-        localStorage.removeItem(getCacheKey(currentUserId));
-        console.log('Cache cleared');
+    connectWebSocket() {
+        wsService.connect();
+        
+        // Handle incoming messages
+        wsService.on('message', (message) => {
+        console.log('📩 WS message received:', message);
+         this.handleIncomingMessage(message);
+        });
+        
+        // Handle user updates
+        wsService.on('user_joined', () => {
+            this.loadUsers();
+        });
+        
+        wsService.on('user_left', () => {
+            this.loadUsers();
+        });
+        
+    }
+    
+    /**
+     * Handle incoming WebSocket message
+     * @param {object} message - Message data
+     */
+    handleIncomingMessage(message) {
+        // Backend format: { username, message }
+        const senderUsername = message.username;
+        const currentUsername = this.currentUser.username;
+        const recipientUsername = this.currentRecipient?.username;
+        
+        // Only add if it's part of current conversation
+        if (senderUsername === recipientUsername || senderUsername === currentUsername) {
+            this.messages.push(message);
+            this.renderMessages();
+            
+            // Play notification sound if message is from recipient
+            if (senderUsername === recipientUsername) {
+                playNotificationSound();
+                showNotification(
+                    this.currentRecipient.username,
+                    message.message  // Backend uses 'message' not 'text'
+                );
+            }
+        }
+    }
+    
+    /**
+     * Start polling for new messages (fallback)
+     */
+    startMessagePolling() {
+    // Poll every 3 seconds
+    this.messagePollingInterval = setInterval(async () => {
+        if (this.currentRecipient && (!wsService.isConnected() || wsService.isStale())) {
+            await this.loadMessages();
+        }
+    }, 3000);
+    }
+    
+    /**
+     * Stop message polling
+     */
+    stopMessagePolling() {
+        if (this.messagePollingInterval) {
+            clearInterval(this.messagePollingInterval);
+            this.messagePollingInterval = null;
+        }
+    }
+    
+    /**
+     * Setup profile modal
+     */
+    setupProfileModal() {
+        const modal = document.getElementById('profile-modal');
+        const modalOverlay = document.getElementById('modal-overlay');
+        const modalClose = document.getElementById('modal-close');
+        const cancelBtn = document.getElementById('cancel-profile-btn');
+        const profileForm = document.getElementById('profile-form');
+        
+        if (modalClose) {
+            modalClose.addEventListener('click', () => this.closeProfileModal());
+        }
+        
+        if (modalOverlay) {
+            modalOverlay.addEventListener('click', () => this.closeProfileModal());
+        }
+        
+        if (cancelBtn) {
+            cancelBtn.addEventListener('click', () => this.closeProfileModal());
+        }
+        
+        if (profileForm) {
+            profileForm.addEventListener('submit', (e) => this.handleProfileUpdate(e));
+        }
+    }
+    
+    /**
+     * Open profile modal
+     */
+    openProfileModal() {
+        const modal = document.getElementById('profile-modal');
+        const usernameInput = document.getElementById('profile-username');
+        
+        if (modal) modal.classList.add('active');
+        if (usernameInput) usernameInput.value = this.currentUser.username;
+    }
+    
+    /**
+     * Close profile modal
+     */
+    closeProfileModal() {
+        const modal = document.getElementById('profile-modal');
+        if (modal) modal.classList.remove('active');
+        hideError('profile-error');
+    }
+    
+    /**
+     * Handle profile update
+     * @param {Event} e - Form submit event
+     */
+    async handleProfileUpdate(e) {
+        e.preventDefault();
+        hideError('profile-error');
+        
+        const form = e.target;
+        const submitBtn = form.querySelector('button[type="submit"]');
+        
+        const username = form.username.value.trim();
+        const password = form.password.value;
+        const passwordConfirm = form.password_confirm.value;
+        
+        // Build update data
+        const updateData = {};
+        
+        if (username && username !== this.currentUser.username) {
+            updateData.username = username;
+        }
+        
+        if (password) {
+            if (password !== passwordConfirm) {
+                showError('profile-error', 'Passwörter stimmen nicht überein');
+                return;
+            }
+            updateData.password = password;
+        }
+        
+        if (Object.keys(updateData).length === 0) {
+            showError('profile-error', 'Keine Änderungen vorgenommen');
+            return;
+        }
+        
+        try {
+            const userId = this.currentUser.id || this.currentUser._id;
+            const updatedUser = await API.updateUser(userId, updateData);
+            
+            // Update stored user data
+            const token = API.getToken();
+            API.saveAuthData(token, updatedUser);
+            
+            // Update current user
+            this.currentUser = updatedUser;
+            this.setupUI();
+            
+            // Close modal
+            this.closeProfileModal();
+            
+        } catch (error) {
+            console.error('Error updating profile:', error);
+            showError('profile-error', error.message || 'Fehler beim Aktualisieren des Profils');
+        }
+    }
+    
+    /**
+     * Destroy chat manager
+     */
+    destroy() {
+        this.stopMessagePolling();
+        wsService.disconnect();
     }
 }
 

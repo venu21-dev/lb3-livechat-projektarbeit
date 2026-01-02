@@ -1,88 +1,124 @@
 /**
- * LiveChat - Main Entry Point
- * M294 LB3 Project
- * Authors: Venu & Mathu
+ * Main Application Entry Point
+ * Initializes the application and handles routing
  */
 
-import * as API from './api.js';
-import * as Auth from './auth.js';
+import { initAuth, isAuthenticated } from './auth.js';
+import chatManager from './chat.js';
 
-// Application state
-const app = {
-    initialized: false,
-    currentPage: null,
-    currentUser: null
-};
-
-/**
- * Show specific page
- */
-function showPage(pageName) {
-    // Hide all pages
-    const pages = ['auth-page', 'chat-page'];
-    pages.forEach(page => {
-        const element = document.getElementById(page);
-        if (element) element.classList.add('hidden');
-    });
-
-    // Show requested page
-    const pageElement = document.getElementById(`${pageName}-page`);
-    if (pageElement) {
-        pageElement.classList.remove('hidden');
-        app.currentPage = pageName;
+class App {
+    constructor() {
+        this.currentView = null;
     }
-
-    // Hide loading screen
-    const loadingScreen = document.getElementById('loading-screen');
-    if (loadingScreen) {
-        loadingScreen.classList.add('hidden');
+    
+    /**
+     * Initialize application
+     */
+    init() {
+        console.log('Initializing LiveChat application...');
+        
+        // Initialize auth
+        initAuth();
+        
+        // Setup routing
+        this.setupRouting();
+        
+        // Handle initial route
+        this.handleRoute();
+        
+        // Listen for hash changes
+        window.addEventListener('hashchange', () => this.handleRoute());
     }
-}
-
-/**
- * Initialize application
- */
-async function init() {
-    console.log('🚀 LiveChat starting...');
-
-    try {
-        // Check if user is authenticated
-        if (API.isAuthenticated()) {
-            // User is logged in
-            app.currentUser = API.getStoredUser();
-            console.log('✅ User authenticated:', app.currentUser.username);
-
-            // Show chat page
-            showPage('chat');
-
-            // Initialize chat
-            const { default: chatManager } = await import('./chat.js');
-            await chatManager.init();
-
-            
-
-        } else {
-            // User not logged in, show auth page
-            console.log('ℹ️ User not authenticated, showing login');
-            showPage('auth');
+    
+    /**
+     * Setup routing
+     */
+    setupRouting() {
+        // Default route
+        if (!window.location.hash) {
+            window.location.hash = isAuthenticated() ? '#chat' : '#login';
         }
-
-        // Initialize authentication
-        Auth.initAuth();
-
-        app.initialized = true;
-        console.log('✅ LiveChat initialized');
-
-    } catch (error) {
-        console.error('❌ Error initializing app:', error);
+    }
+    
+    /**
+     * Handle route changes
+     */
+    async handleRoute() {
+        const hash = window.location.hash.slice(1) || 'login';
+        
+        console.log('Routing to:', hash);
+        
+        // Check authentication for protected routes
+        if (hash === 'chat' && !isAuthenticated()) {
+            window.location.hash = '#login';
+            return;
+        }
+        
+        // Redirect to chat if logged in and trying to access login/register
+        if ((hash === 'login' || hash === 'register') && isAuthenticated()) {
+            window.location.hash = '#chat';
+            return;
+        }
+        
+        // Switch views
+        await this.switchView(hash);
+    }
+    
+    /**
+     * Switch to a different view
+     * @param {string} viewName - Name of the view
+     */
+    async switchView(viewName) {
+        // Hide all views
+        document.querySelectorAll('.view').forEach(view => {
+            view.classList.remove('active');
+        });
+        
+        // Show requested view
+        let viewElement;
+        
+        switch (viewName) {
+            case 'login':
+                viewElement = document.getElementById('login-view');
+                this.currentView = 'login';
+                break;
+                
+            case 'register':
+                viewElement = document.getElementById('register-view');
+                this.currentView = 'register';
+                break;
+                
+            case 'chat':
+                viewElement = document.getElementById('chat-view');
+                this.currentView = 'chat';
+                
+                // Initialize chat if not already initialized
+                if (!chatManager.currentUser) {
+                    await chatManager.init();
+                }
+                break;
+                
+            default:
+                console.error('Unknown view:', viewName);
+                window.location.hash = '#login';
+                return;
+        }
+        
+        if (viewElement) {
+            viewElement.classList.add('active');
+        }
     }
 }
 
-// Start app when DOM is ready
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', init);
-} else {
-    init();
-}
+// Create and initialize app when DOM is ready
+document.addEventListener('DOMContentLoaded', () => {
+    const app = new App();
+    app.init();
+});
 
-export default app;
+// Handle page unload
+window.addEventListener('beforeunload', () => {
+    if (chatManager) {
+        chatManager.destroy();
+    }
+});
