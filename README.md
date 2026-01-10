@@ -91,17 +91,15 @@ cd lb3-livechat-projektarbeit
 
 **Direkt im Browser**
 
-* `index.html` im Browser öffnen
-
 * Variante A: Direkt im Browser (Standard)
 
 Die Datei * `index.html` im Browser öffnen.
 
-Variante B: Lokaler Server (optional)
-Falls der Browser den Zugriff auf lokale Ressourcen einschränkt, kann ein lokaler Server gestartet werden:
+* Variante B Lokaler Server (optional)
 
+```bash
 python3 -m http.server 8080
-
+````
 
 Anschliessend im Browser öffnen:
 http://localhost:8080
